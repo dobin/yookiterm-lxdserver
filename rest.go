@@ -170,7 +170,6 @@ var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 	containerBaseName := vars["containerBaseName"]
 
 	token := r.FormValue("token");
-	fmt.Println("T: ", token)
 	if jwtValidate(token) == false {
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
