@@ -12,6 +12,9 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/lxc/lxd"
 	"github.com/lxc/lxd/shared"
+
+
+	//"github.com/dgrijalva/jwt-go"
 )
 import b64 "encoding/base64"
 
@@ -79,7 +82,7 @@ var restContainerHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.
 	vars := mux.Vars(r)
 	containerBaseName := vars["containerBaseName"]
 
-	userId := "dobin"
+	userId := getUserId(r)
 
 	body := make(map[string]interface{})
 
@@ -124,7 +127,7 @@ var restContainerStartHandler = http.HandlerFunc(func(w http.ResponseWriter, r *
 	vars := mux.Vars(r)
 	containerBaseName := vars["containerBaseName"]
 
-	userId := "dobin"
+	userId := getUserId(r)
 
 	doesExist, _, _ := dbContainerExists(userId, containerBaseName)
 	if doesExist {
@@ -170,14 +173,11 @@ var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 	containerBaseName := vars["containerBaseName"]
 
 	token := r.FormValue("token");
-	if jwtValidate(token) == false {
+	isAuth, userId := jwtValidate(token)
+	if isAuth == false {
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
-
-	// username
-	// TODO replace with cookie
-	userId := "dobin"
 
 	// TODO replace with db call
 	containerName := fmt.Sprintf("%s%s", containerBaseName, userId)
