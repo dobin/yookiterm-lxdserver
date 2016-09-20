@@ -75,9 +75,9 @@ func main() {
 
 
 func parseConfig() error {
-	data, err := ioutil.ReadFile("yookiterm-config.yml")
+	data, err := ioutil.ReadFile("yookitermlxd-config.yml")
 	if os.IsNotExist(err) {
-		return fmt.Errorf("The configuration file (lxd-demo.yml) doesn't exist.")
+		return fmt.Errorf("The configuration file (yookitermlxd-config.yml) doesn't exist.")
 	} else if err != nil {
 		return fmt.Errorf("Unable to read the configuration: %s", err)
 	}
