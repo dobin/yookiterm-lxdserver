@@ -33,7 +33,6 @@ type serverConfig struct {
 	QuotaTime           int      `yaml:"quota_time"`
 	Container           string   `yaml:"container"`
 	Image               string   `yaml:"image"`
-	ServerAddr          string   `yaml:"server_addr"`
 	ServerBannedIPs     []string `yaml:"server_banned_ips"`
 	ServerConsoleOnly   bool     `yaml:"server_console_only"`
 	ServerIPv6Only      bool     `yaml:"server_ipv6_only"`
@@ -41,8 +40,13 @@ type serverConfig struct {
 	ServerContainersMax int      `yaml:"server_containers_max"`
 	ServerMaintenance   bool     `yaml:"server_maintenance"`
 	ServerTerms         string   `yaml:"server_terms"`
-	Jwtsecret						string   `yaml:"jwtsecret"`
-	ServerTermsHash     string
+	Jwtsecret           string   `yaml:"jwtsecret"`
+	ServerHttp          bool     `yaml:"server_http"`
+	ServerHttpPort      string   `yaml:"server_http_port"`
+	ServerHttps         bool     `yaml:"server_https"`
+	ServerHttpsPort     string   `yaml:"server_https_port"`
+	ServerHttpsCertFile string   `yaml:"server_https_cert_file"`
+	ServerHttpsKeyFile  string   `yaml:"server_https_key_file"`
 }
 
 
@@ -71,7 +75,7 @@ func main() {
 
 
 func parseConfig() error {
-	data, err := ioutil.ReadFile("lxd-demo.yml")
+	data, err := ioutil.ReadFile("yookiterm-config.yml")
 	if os.IsNotExist(err) {
 		return fmt.Errorf("The configuration file (lxd-demo.yml) doesn't exist.")
 	} else if err != nil {
@@ -81,10 +85,6 @@ func parseConfig() error {
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
 		return fmt.Errorf("Unable to parse the configuration: %s", err)
-	}
-
-	if config.ServerAddr == "" {
-		config.ServerAddr = ":8080"
 	}
 
 	return nil
@@ -182,12 +182,28 @@ func run() error {
 	handler := c.Handler(r)
 
 	fmt.Println("Yookiterm LXD server 0.2");
-	fmt.Println("Listening on: ", config.ServerAddr)
 
-	err = http.ListenAndServe(config.ServerAddr, handler)
-	if err != nil {
-		return err
+
+	if config.ServerHttp {
+		fmt.Println("Listening HTTP on: ", config.ServerHttpPort)
+		go func() {
+		err = http.ListenAndServe(config.ServerHttpPort, handler)
+		if err != nil {
+			//return err
+			fmt.Println("HTTP error:", err)
+		}
+		}()
 	}
 
+	if config.ServerHttps {
+		fmt.Println("Listening HTTPS on: ", config.ServerHttpsPort)
+		//err = http.ListenAndServeTLS(":443", "/etc/letsencrypt/live/container.exploit.courses/fullchain.pem", "/etc/letsencrypt/live/container.exploit.courses/privkey.pem", handler)
+		err = http.ListenAndServeTLS(config.ServerHttpsPort, config.ServerHttpsCertFile, config.ServerHttpsKeyFile, handler)
+   	 	if err != nil {
+       	 		fmt.Println("ListenAndServe: ", handler)
+    		}
+	}
 	return nil
 }
+
+
