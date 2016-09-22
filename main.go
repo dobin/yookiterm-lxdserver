@@ -1,15 +1,10 @@
 package main
 
 import (
-//	"crypto/sha256"
 	"fmt"
-//	"io"
 	"io/ioutil"
-//	"math/rand"
 	"net/http"
 	"os"
-//	"strings"
-//	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/lxc/lxd"
@@ -63,7 +58,7 @@ const (
 	serverMaintenance statusCode = 1
 
 	containerStarted      statusCode = 0
-	containerInvalidTerms statusCode = 1
+//	containerInvalidTerms statusCode = 1
 	containerServerFull   statusCode = 2
 	containerQuotaReached statusCode = 3
 	containerUserBanned   statusCode = 4

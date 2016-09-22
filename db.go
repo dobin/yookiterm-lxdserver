@@ -12,12 +12,23 @@ import (
 var db *sql.DB
 
 
-
 const (
 	dbContainerStatusRunning = 0
 	dbContainerStatusDeleted = 1
 	dbContainerStatusSuspended = 2
 )
+
+
+type containerDbInfo struct {
+	ContainerName string
+	ContainerBaseName string
+	ContainerIP string
+	ContainerUsername string
+	ContainerPassword string
+	ContainerExpiry int64
+	ContainerStatus int64
+}
+
 
 func dbSetup() error {
 	var err error
@@ -97,16 +108,6 @@ func dbContainerExists(userId string, containerBaseName string) (bool, string, s
 	}
 
 	return doesExist, uuid, containerName
-}
-
-type containerDbInfo struct {
-	ContainerName string
-	ContainerBaseName string
-	ContainerIP string
-	ContainerUsername string
-	ContainerPassword string
-	ContainerExpiry int64
-	ContainerStatus int64
 }
 
 
