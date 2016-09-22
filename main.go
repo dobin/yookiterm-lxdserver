@@ -16,12 +16,19 @@ import (
 	"golang.org/x/exp/inotify"
 	"gopkg.in/yaml.v2"
 	"github.com/rs/cors"
-
+  "github.com/howbazaar/loggo"
 )
 
 // Global variables
 var lxdDaemon *lxd.Client
 var config serverConfig
+
+var logger = loggo.GetLogger("project.main")
+
+
+func initLogger() {
+	logger.SetLogLevel(loggo.DEBUG)
+}
 
 
 type serverConfig struct {
@@ -131,6 +138,8 @@ func configWatcher() {
 func run() error {
 	var err error
 
+	initLogger()
+
 	// Setup configuration
 	err = parseConfig()
 	if err != nil {
@@ -167,6 +176,7 @@ func run() error {
 
 	// Container related
 	// Authenticated
+	r.Handle("/1.0/container", jwtMiddleware.Handler(restContainerListHandler))
 	r.Handle("/1.0/container/{containerBaseName}", jwtMiddleware.Handler(restContainerHandler))
 	r.Handle("/1.0/container/{containerBaseName}/start", jwtMiddleware.Handler(restContainerStartHandler))
 	// Websockets cannot contain additional header, so authentication is
@@ -181,29 +191,26 @@ func run() error {
 	})
 	handler := c.Handler(r)
 
-	fmt.Println("Yookiterm LXD server 0.2");
-
+	fmt.Println("Yookiterm LXD server 0.3")
+	if config.ServerHttps {
+		go func() {
+			fmt.Println("Listening HTTPS on: ", config.ServerHttpsPort)
+			//err = http.ListenAndServeTLS(":443", "/etc/letsencrypt/live/container.exploit.courses/fullchain.pem", "/etc/letsencrypt/live/container.exploit.courses/privkey.pem", handler)
+			err = http.ListenAndServeTLS(config.ServerHttpsPort, config.ServerHttpsCertFile, config.ServerHttpsKeyFile, handler)
+	   	 	if err != nil {
+	       	 		fmt.Println("ListenAndServe: ", handler)
+    		}
+		}()
+	}
 
 	if config.ServerHttp {
 		fmt.Println("Listening HTTP on: ", config.ServerHttpPort)
-		go func() {
 		err = http.ListenAndServe(config.ServerHttpPort, handler)
 		if err != nil {
 			//return err
 			fmt.Println("HTTP error:", err)
 		}
-		}()
 	}
 
-	if config.ServerHttps {
-		fmt.Println("Listening HTTPS on: ", config.ServerHttpsPort)
-		//err = http.ListenAndServeTLS(":443", "/etc/letsencrypt/live/container.exploit.courses/fullchain.pem", "/etc/letsencrypt/live/container.exploit.courses/privkey.pem", handler)
-		err = http.ListenAndServeTLS(config.ServerHttpsPort, config.ServerHttpsCertFile, config.ServerHttpsKeyFile, handler)
-   	 	if err != nil {
-       	 		fmt.Println("ListenAndServe: ", handler)
-    		}
-	}
 	return nil
 }
-
-

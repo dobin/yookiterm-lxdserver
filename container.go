@@ -13,7 +13,6 @@ import (
 )
 
 
-
 func restReturnExistingContainer(uuid string, userId string, containerBaseName string, w http.ResponseWriter) {
 	body := make(map[string]interface{})
 
@@ -26,7 +25,7 @@ func restReturnExistingContainer(uuid string, userId string, containerBaseName s
 	// get container data
 	containerName, containerIP, containerUsername, containerPassword, containerExpiry, err := dbGetContainer(uuid)
 	if err != nil || containerName == "" {
-		fmt.Println("Error: ", containerName, "  ", containerIP)
+		logger.Errorf("restReturnExistingContainer: Error getting container: ", containerName)
 		http.Error(w, "Container not found", 404)
 		return
 	}
@@ -93,110 +92,69 @@ users:
 	}
 
 	var resp *lxd.Response
-	//if config.Container != "" {
-	fmt.Println("Creating container form image ", containerBaseName, "with name: ", containerName)
+
+	// Copy the base image
+	logger.Debugf("restCreateContainer: Pre-copy")
+	logger.Infof("Creating container from image %s with name %s", containerBaseName, containerName)
 		resp, err := lxdDaemon.LocalCopy(containerBaseName, containerName, ctConfig, nil, false)
-	//} else {
-	//	resp, err = lxdDaemon.Init(containerName, "local", config.Image, nil, ctConfig, nil, false)
-	//}
 
 	if err != nil {
-		restStartError(w, err, containerUnknownError)
+		restStartContainerError(w, err, containerUnknownError)
 		return
 	}
-
 	err = lxdDaemon.WaitForSuccess(resp.Operation)
 	if err != nil {
-		restStartError(w, err, containerUnknownError)
+		restStartContainerError(w, err, containerUnknownError)
 		return
 	}
+	logger.Debugf("restCreateContainer: Post-copy")
 
 	// Configure the container devices
 	ct, err := lxdDaemon.ContainerInfo(containerName)
 	if err != nil {
 		lxdForceDelete(lxdDaemon, containerName)
-		restStartError(w, err, containerUnknownError)
+		restStartContainerError(w, err, containerUnknownError)
 		return
 	}
 	if config.QuotaDisk > 0 {
 		ct.Devices["root"] = shared.Device{"type": "disk", "path": "/", "size": fmt.Sprintf("%dGB", config.QuotaDisk)}
 	}
-
 	err = lxdDaemon.UpdateContainerConfig(containerName, ct.Brief())
 	if err != nil {
 		lxdForceDelete(lxdDaemon, containerName)
-		restStartError(w, err, containerUnknownError)
+		restStartContainerError(w, err, containerUnknownError)
 		return
 	}
 
 	// Start the container
+	logger.Debugf("restCreateContainer: Pre-start")
 	resp, err = lxdDaemon.Action(containerName, "start", -1, false, false)
 	if err != nil {
 		lxdForceDelete(lxdDaemon, containerName)
-		restStartError(w, err, containerUnknownError)
+		restStartContainerError(w, err, containerUnknownError)
 		return
 	}
-
 	err = lxdDaemon.WaitForSuccess(resp.Operation)
 	if err != nil {
 		lxdForceDelete(lxdDaemon, containerName)
-		restStartError(w, err, containerUnknownError)
+		restStartContainerError(w, err, containerUnknownError)
 		return
 	}
+	logger.Debugf("restCreateContainer: Post-start")
 
 	// Get the IP (30s timeout)
 	var containerIP string
 	if !config.ServerConsoleOnly {
-		time.Sleep(2 * time.Second)
-		timeout := 30
-		for timeout != 0 {
-			timeout--
-			ct, err := lxdDaemon.ContainerState(containerName)
-			if err != nil {
-				lxdForceDelete(lxdDaemon, containerName)
-				restStartError(w, err, containerUnknownError)
-				return
-			}
-
-			for netName, net := range ct.Network {
-				if !shared.StringInSlice(netName, []string{"eth0", "lxcbr0"}) {
-					continue
-				}
-
-				for _, addr := range net.Addresses {
-					if addr.Address == "" {
-						continue
-					}
-
-					if addr.Scope != "global" {
-						continue
-					}
-
-					if config.ServerIPv6Only && addr.Family != "inet6" {
-						continue
-					}
-
-					containerIP = addr.Address
-					break
-				}
-
-				if containerIP != "" {
-					break
-				}
-			}
-
-			if containerIP != "" {
-				break
-			}
-
-			time.Sleep(500 * time.Millisecond)
-		}
+			containerIP = ""
+			// containerIP = containerGetIp(containerName)
 	} else {
 		containerIP = "console-only"
 	}
 
+	// Setup
 	containerExpiry := time.Now().Unix() + int64(config.QuotaTime)
 
+	// Prepare return data
 	if !config.ServerConsoleOnly {
 		body["ip"] = containerIP
 		body["username"] = containerUsername
@@ -210,18 +168,17 @@ users:
 	duration, err := time.ParseDuration(fmt.Sprintf("%ds", config.QuotaTime))
 	if err != nil {
 		lxdForceDelete(lxdDaemon, containerName)
-		restStartError(w, err, containerUnknownError)
+		restStartContainerError(w, err, containerUnknownError)
 		return
 	}
 
-	requestTerms := ""
-	containerID, err := dbNew(id, userId, containerBaseName, containerName, containerIP, containerUsername, containerPassword, containerExpiry, requestDate, requestIP, requestTerms)
+	// Create container in db
+	containerID, err := dbNewContainer(id, userId, containerBaseName, containerName, containerIP, containerUsername, containerPassword, containerExpiry, requestDate, requestIP)
 	if err != nil {
 		lxdForceDelete(lxdDaemon, containerName)
-		restStartError(w, err, containerUnknownError)
+		restStartContainerError(w, err, containerUnknownError)
 		return
 	}
-
 	time.AfterFunc(duration, func() {
 		lxdForceDelete(lxdDaemon, containerName)
 		dbExpire(containerID)
@@ -237,6 +194,57 @@ users:
 	}
 }
 
+
+
+func containerGetIp(containerName string) (error, string) {
+	var containerIP string
+	time.Sleep(2 * time.Second)
+	timeout := 30
+	for timeout != 0 {
+		timeout--
+		ct, err := lxdDaemon.ContainerState(containerName)
+		if err != nil {
+			lxdForceDelete(lxdDaemon, containerName)
+			//restStartContainerError(w, err, containerUnknownError)
+			return err, ""
+		}
+
+		for netName, net := range ct.Network {
+			if !shared.StringInSlice(netName, []string{"eth0", "lxcbr0"}) {
+				continue
+			}
+
+			for _, addr := range net.Addresses {
+				if addr.Address == "" {
+					continue
+				}
+
+				if addr.Scope != "global" {
+					continue
+				}
+
+				if config.ServerIPv6Only && addr.Family != "inet6" {
+					continue
+				}
+
+				containerIP = addr.Address
+				break
+			}
+
+			if containerIP != "" {
+				break
+			}
+		}
+
+		if containerIP != "" {
+			break
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return nil, containerIP
+}
 
 
 func initialContainerCleanupHandler() error {
@@ -266,4 +274,23 @@ func initialContainerCleanupHandler() error {
 	}
 
 	return nil
+}
+
+
+
+func restStartContainerError(w http.ResponseWriter, err error, code statusCode) {
+	body := make(map[string]interface{})
+	body["status"] = code
+
+	logger.Errorf("restStartContainerError: ", err, " - ")
+
+	if err != nil {
+		fmt.Printf("error: %s\n", err)
+	}
+
+	err = json.NewEncoder(w).Encode(body)
+	if err != nil {
+		http.Error(w, "Internal server error", 500)
+		return
+	}
 }

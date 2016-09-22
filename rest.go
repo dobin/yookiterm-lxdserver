@@ -12,11 +12,30 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/lxc/lxd"
 	"github.com/lxc/lxd/shared"
-
-
-	//"github.com/dgrijalva/jwt-go"
 )
 import b64 "encoding/base64"
+
+
+// REST
+// Authenticated
+var restContainerListHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
+	userId := getUserId(r)
+
+	err, containerList := dbGetContainerListForUser(userId)
+	if err != nil {
+		http.Error(w, "Internal server error", 500)
+		return
+	}
+
+	err = json.NewEncoder(w).Encode(containerList)
+	if err != nil {
+		http.Error(w, "Internal server error", 500)
+		return
+	}
+})
 
 
 // REST
@@ -84,6 +103,8 @@ var restContainerHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.
 
 	userId := getUserId(r)
 
+	logger.Infof("restContainerHandler: start container %s from user %s", containerBaseName, userId)
+
 	body := make(map[string]interface{})
 
 	var containerName string
@@ -128,6 +149,8 @@ var restContainerStartHandler = http.HandlerFunc(func(w http.ResponseWriter, r *
 	containerBaseName := vars["containerBaseName"]
 
 	userId := getUserId(r)
+
+	logger.Infof("restContainerStartHandler: Starting containerBase %s for user %s", containerBaseName, userId)
 
 	doesExist, _, _ := dbContainerExists(userId, containerBaseName)
 	if doesExist {
@@ -179,6 +202,8 @@ var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 		return
 	}
 
+	logger.Infof("restContainerConsoleHandler: start console for container %s for user %s", containerBaseName, userId)
+
 	// TODO replace with db call
 	containerName := fmt.Sprintf("%s%s", containerBaseName, userId)
 
@@ -212,22 +237,6 @@ var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 
 
 /********************/
-
-func restStartError(w http.ResponseWriter, err error, code statusCode) {
-	body := make(map[string]interface{})
-	body["status"] = code
-
-	if err != nil {
-		fmt.Printf("error: %s\n", err)
-	}
-
-	err = json.NewEncoder(w).Encode(body)
-	if err != nil {
-		http.Error(w, "Internal server error", 500)
-		return
-	}
-}
-
 
 func restClientIP(r *http.Request) (string, string, error) {
 	var address string

@@ -63,7 +63,7 @@ func restStartHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract IP
 	requestIP, _, err := restClientIP(r)
 	if err != nil {
-		restStartError(w, err, containerUnknownError)
+		restStartContainerError(w, err, containerUnknownError)
 		return
 	}
 
@@ -93,7 +93,7 @@ func restStartHandler(w http.ResponseWriter, r *http.Request) {
 	// Check for banned users
 	if shared.StringInSlice(requestIP, config.ServerBannedIPs) {
 		fmt.Println("Banned user");
-		//restStartError(w, nil, containerUserBanned)
+		//restStartContainerError(w, nil, containerUserBanned)
 		//return
 	}
 
@@ -106,7 +106,7 @@ func restStartHandler(w http.ResponseWriter, r *http.Request) {
 	// Server is full
 	if containersCount >= config.ServerContainersMax {
 		fmt.Println("Server full");
-		//restStartError(w, nil, containerServerFull)
+		//restStartContainerError(w, nil, containerServerFull)
 		//return
 	}
 
@@ -118,7 +118,7 @@ func restStartHandler(w http.ResponseWriter, r *http.Request) {
 
 	if config.QuotaSessions != 0 && containersCount >= config.QuotaSessions {
 		fmt.Println("Too many container for ip");
-		//restStartError(w, nil, containerQuotaReached)
+		//restStartContainerError(w, nil, containerQuotaReached)
 		//return
 	}
 */

@@ -99,6 +99,47 @@ func dbContainerExists(userId string, containerBaseName string) (bool, string, s
 	return doesExist, uuid, containerName
 }
 
+type containerDbInfo struct {
+	ContainerName string
+	ContainerBaseName string
+	ContainerIP string
+	ContainerUsername string
+	ContainerPassword string
+	ContainerExpiry int64
+	ContainerStatus int64
+}
+
+
+func dbGetContainerListForUser(userId string) (error, []containerDbInfo) {
+	var containerList []containerDbInfo
+
+	rows, err := dbQuery(db, "SELECT container_name, containerBaseName, container_ip, container_username, container_password, container_expiry, status FROM sessions WHERE status=? AND userId=?;", dbContainerStatusRunning, userId)
+	if err != nil {
+		logger.Errorf("dbquery error")
+		return err, nil
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var container containerDbInfo
+
+		rows.Scan(
+			&container.ContainerName,
+			&container.ContainerBaseName,
+			&container.ContainerIP,
+			&container.ContainerUsername,
+			&container.ContainerPassword,
+			&container.ContainerExpiry,
+			&container.ContainerStatus,
+		)
+
+		containerList = append(containerList, container)
+	}
+
+
+	return nil, containerList
+}
+
 
 func dbGetContainerForUser(userId string, containerBaseName string) (string, string, string, string, int64, error) {
 	var containerName string
@@ -144,7 +185,7 @@ func dbGetContainer(id string) (string, string, string, string, int64, error) {
 }
 
 
-func dbNew(id string, userId string, containerBaseName string, containerName string, containerIP string, containerUsername string, containerPassword string, containerExpiry int64, requestDate int64, requestIP string, requestTerms string) (int64, error) {
+func dbNewContainer(id string, userId string, containerBaseName string, containerName string, containerIP string, containerUsername string, containerPassword string, containerExpiry int64, requestDate int64, requestIP string) (int64, error) {
 	res, err := db.Exec(`
 INSERT INTO sessions (
 	status,
@@ -159,7 +200,7 @@ INSERT INTO sessions (
 	request_date,
 	request_ip,
 	request_terms) VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-`, id, userId, containerBaseName, containerName, containerIP, containerUsername, containerPassword, containerExpiry, requestDate, requestIP, requestTerms)
+`, id, userId, containerBaseName, containerName, containerIP, containerUsername, containerPassword, containerExpiry, requestDate, requestIP, "")
 	if err != nil {
 		return 0, err
 	}
