@@ -49,6 +49,7 @@ type serverConfig struct {
 	ServerHttpsPort     string   `yaml:"server_https_port"`
 	ServerHttpsCertFile string   `yaml:"server_https_cert_file"`
 	ServerHttpsKeyFile  string   `yaml:"server_https_key_file"`
+	ServerHostnameAlias string   `yaml:"server_hostname_alias"`
 }
 
 
@@ -174,6 +175,7 @@ func run() error {
 	r.Handle("/1.0/container", jwtMiddleware.Handler(restContainerListHandler))
 	r.Handle("/1.0/container/{containerBaseName}", jwtMiddleware.Handler(restContainerHandler))
 	r.Handle("/1.0/container/{containerBaseName}/start", jwtMiddleware.Handler(restContainerStartHandler))
+	r.Handle("/1.0/container/{containerBaseName}/stop", jwtMiddleware.Handler(restContainerStopHandler))
 	// Websockets cannot contain additional header, so authentication is
 	// performed via token in GET parameter
 	r.Handle("/1.0/container/{containerBaseName}/console", restContainerConsoleHandler)

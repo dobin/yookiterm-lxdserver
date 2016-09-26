@@ -30,6 +30,9 @@ var restContainerListHandler = http.HandlerFunc(func(w http.ResponseWriter, r *h
 		return
 	}
 
+	// add my hostname to every container
+
+
 	err = json.NewEncoder(w).Encode(containerList)
 	if err != nil {
 		http.Error(w, "Internal server error", 500)
@@ -191,6 +194,48 @@ var restContainerStartHandler = http.HandlerFunc(func(w http.ResponseWriter, r *
 
 // REST
 // Authenticated
+// Admin only
+var restContainerStopHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
+	vars := mux.Vars(r)
+	containerBaseName := vars["containerBaseName"]
+	userId := getUserId(r)
+
+	if ! userIsAdmin(r) {
+		logger.Infof("User %s which is not admin tried to stop a container %s", userId, containerBaseName)
+
+		http.Error(w, "Internal server error", 500)
+		return
+	}
+
+	body := make(map[string]interface{})
+
+	logger.Infof("Stopping containerBase %s for user %s", containerBaseName, userId)
+	var err error
+
+	doesExist, uuid, containerName := dbContainerExists(userId, containerBaseName)
+	if doesExist {
+		lxdForceDelete(lxdDaemon, containerName)
+		err = dbExpireUuid(uuid)
+	} else {
+		http.Error(w, "Container not found", 404)
+		return
+	}
+
+	body["operationSuccess"] = true
+
+	err = json.NewEncoder(w).Encode(body)
+	if err != nil {
+		http.Error(w, "Internal server error", 500)
+		return
+	}
+})
+
+
+// REST
+// Authenticated
 var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	containerBaseName := vars["containerBaseName"]
@@ -230,7 +275,6 @@ var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 	}
 
 	// TODO check if VM is already started
-
 
 	restMakeMeConsole(w, r, widthInt, heightInt, containerName)
 })
@@ -329,7 +373,9 @@ func restMakeMeConsole(w http.ResponseWriter, r *http.Request, widthInt int, hei
 			case websocket.BinaryMessage:
 				continue
 			case websocket.TextMessage:
-				w.Write(payload);
+				data_decoded, _ := b64.StdEncoding.DecodeString(string(payload))
+				w.Write(data_decoded);
+				//w.Write(payload);
 			default:
 				break
 			}

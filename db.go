@@ -219,6 +219,10 @@ func dbExpire(id int64) error {
 	_, err := db.Exec("UPDATE sessions SET status=? WHERE id=?;", dbContainerStatusDeleted, id)
 	return err
 }
+func dbExpireUuid(uuid string) error {
+	_, err := db.Exec("UPDATE sessions SET status=? WHERE uuid=?;", dbContainerStatusDeleted, uuid)
+	return err
+}
 
 
 func dbActiveContainerCount() (int, error) {

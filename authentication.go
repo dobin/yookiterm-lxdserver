@@ -21,6 +21,15 @@ func getUserId(r *http.Request) string {
   return userId
 }
 
+func userIsAdmin(r *http.Request) bool {
+  userContext := context.Get(r, "user")
+
+  claims := userContext.(*jwt.Token).Claims.(jwt.MapClaims)
+  isAdmin := claims["admin"].(bool)
+
+  return isAdmin
+}
+
 
 var jwtMiddleware = jwtmiddleware.New(jwtmiddleware.Options{
   ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
