@@ -15,6 +15,10 @@ import(
 func getUserId(r *http.Request) string {
   userContext := context.Get(r, "user")
 
+  if userContext == nil {
+    logger.Errorf("Authentication error")
+    return "";
+  }
   claims := userContext.(*jwt.Token).Claims.(jwt.MapClaims)
   userId := claims["userId"].(string)
 
@@ -23,6 +27,11 @@ func getUserId(r *http.Request) string {
 
 func userIsAdmin(r *http.Request) bool {
   userContext := context.Get(r, "user")
+  if userContext == nil {
+    logger.Errorf("Authentication error")
+    return false;
+  }
+
 
   claims := userContext.(*jwt.Token).Claims.(jwt.MapClaims)
   isAdmin := claims["admin"].(bool)

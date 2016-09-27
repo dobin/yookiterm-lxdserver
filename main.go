@@ -180,6 +180,10 @@ func run() error {
 	// performed via token in GET parameter
 	r.Handle("/1.0/container/{containerBaseName}/console", restContainerConsoleHandler)
 
+	// Admin related
+	// Authenticated
+	r.Handle("/1.0/admin/exec/{command}", jwtMiddleware.Handler(restAdminExecHandler))
+
 	// Set CORS
 	c := cors.New(cors.Options{
 	    AllowedOrigins: []string{"*"},
