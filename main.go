@@ -50,6 +50,7 @@ type serverConfig struct {
 	ServerHttpsCertFile string   `yaml:"server_https_cert_file"`
 	ServerHttpsKeyFile  string   `yaml:"server_https_key_file"`
 	ServerHostnameAlias string   `yaml:"server_hostname_alias"`
+	ContainerSshBasePort int     `yaml:"container_sshbaseport"`
 }
 
 

@@ -56,11 +56,13 @@ func restCreateContainer(userId string, containerBaseName string, w http.Respons
 	requestDate := time.Now().Unix()
 
 	// Create the container
-	//containerName := fmt.Sprintf("tryit-%s", petname.Adjective())
 	containerName := fmt.Sprintf("%s%s", containerBaseName, userId)
 	containerUsername := petname.Adjective()
 	containerPassword := petname.Adjective()
 	id := uuid.NewRandom().String()
+	sshPort := config.ContainerSshBasePort + 1
+
+	fmt.Println("SSH: ", sshPort)
 
 	// Config
 	ctConfig := map[string]string{}
@@ -143,6 +145,7 @@ users:
 	logger.Debugf("restCreateContainer: Post-start")
 
 	// Get the IP (30s timeout)
+	// Note: Takes too long, skipping
 	var containerIP string
 	if !config.ServerConsoleOnly {
 			containerIP = ""
@@ -151,7 +154,6 @@ users:
 		containerIP = "console-only"
 	}
 
-	// Setup
 	containerExpiry := time.Now().Unix() + int64(config.QuotaTime)
 
 	// Prepare return data
