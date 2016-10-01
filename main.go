@@ -193,24 +193,23 @@ func run() error {
 	})
 	handler := c.Handler(r)
 
-	fmt.Println("Yookiterm LXD server 0.3")
+	logger.Infof("Yookiterm LXD server 0.3")
 	if config.ServerHttps {
 		go func() {
-			fmt.Println("Listening HTTPS on: ", config.ServerHttpsPort)
-			//err = http.ListenAndServeTLS(":443", "/etc/letsencrypt/live/container.exploit.courses/fullchain.pem", "/etc/letsencrypt/live/container.exploit.courses/privkey.pem", handler)
+			logger.Infof("Listening HTTPS on: %s", config.ServerHttpsPort)
 			err = http.ListenAndServeTLS(config.ServerHttpsPort, config.ServerHttpsCertFile, config.ServerHttpsKeyFile, handler)
 	   	 	if err != nil {
-	       	 		fmt.Println("ListenAndServe: ", handler)
+	       	logger.Errorf("ListenAndServe: %s", err)
     		}
 		}()
 	}
 
 	if config.ServerHttp {
-		fmt.Println("Listening HTTP on: ", config.ServerHttpPort)
+		logger.Infof("Listening HTTP on: %s", config.ServerHttpPort)
 		err = http.ListenAndServe(config.ServerHttpPort, handler)
 		if err != nil {
 			//return err
-			fmt.Println("HTTP error:", err)
+			logger.Errorf("HTTP error: %s", err)
 		}
 	}
 
