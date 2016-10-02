@@ -153,10 +153,11 @@ var restContainerStartHandler = http.HandlerFunc(func(w http.ResponseWriter, r *
 
 	userId := getUserId(r)
 
-	logger.Infof("restContainerStartHandler: Starting containerBase %s for user %s", containerBaseName, userId)
+	logger.Infof("Starting containerBase %s for user %s", containerBaseName, userId)
 
 	doesExist, _, _ := dbContainerExists(userId, containerBaseName)
 	if doesExist {
+		logger.Infof("Container already exists, returning data")
 		body := make(map[string]interface{})
 		var containerName string
 		var containerIP string

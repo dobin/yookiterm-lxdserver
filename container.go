@@ -53,6 +53,8 @@ func restReturnExistingContainer(uuid string, userId string, containerBaseName s
 func restCreateContainer(userId string, containerBaseName string, w http.ResponseWriter, requestIP string) {
 	body := make(map[string]interface{})
 
+	logger.Infof("Starting container %s for %s", containerBaseName, userId)
+
 	requestDate := time.Now().Unix()
 
 	// Create the container
@@ -60,9 +62,7 @@ func restCreateContainer(userId string, containerBaseName string, w http.Respons
 	containerUsername := petname.Adjective()
 	containerPassword := petname.Adjective()
 	id := uuid.NewRandom().String()
-	sshPort := config.ContainerSshBasePort + 1
-
-	fmt.Println("SSH: ", sshPort)
+	//sshPort := config.ContainerSshBasePort + 1
 
 	// Config
 	ctConfig := map[string]string{}
@@ -284,7 +284,7 @@ func restStartContainerError(w http.ResponseWriter, err error, code statusCode) 
 	body := make(map[string]interface{})
 	body["status"] = code
 
-	logger.Errorf("restStartContainerError: ", err, " - ")
+	logger.Errorf("restStartContainerError: %s", err)
 
 	if err != nil {
 		fmt.Printf("error: %s\n", err)
