@@ -5,10 +5,12 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"math/rand"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/lxc/lxd"
-	"golang.org/x/exp/inotify"
+	//"gopkg.in/fsnotify.v0"
 	"gopkg.in/yaml.v2"
 	"github.com/rs/cors"
   "github.com/howbazaar/loggo"
@@ -69,7 +71,7 @@ const (
 
 
 func main() {
-	//rand.Seed(time.Now().UTC().UnixNano())
+	rand.Seed(time.Now().UTC().UnixNano() + 0xcafebabe)
 	err := run()
 	if err != nil {
 		fmt.Printf("error: %s\n", err)
@@ -96,6 +98,7 @@ func parseConfig() error {
 
 
 func configWatcher() {
+	/*
 	// Watch for configuration changes
 	watcher, err := inotify.NewWatcher()
 	if err != nil {
@@ -129,6 +132,7 @@ func configWatcher() {
 			}
 		}
 	}()
+	*/
 }
 
 
