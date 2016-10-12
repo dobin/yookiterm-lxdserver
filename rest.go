@@ -208,31 +208,27 @@ var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 	logger.Infof("restContainerConsoleHandler: start console for container %s for user %s", containerBaseName, userId)
 
 	// TODO replace with db call
+	// TODO check if VM is already started
+
 	containerName := fmt.Sprintf("%s%s", containerBaseName, userId)
 
 	// Get console width and height
 	width := r.FormValue("width")
 	height := r.FormValue("height")
-
 	if width == "" {
 		width = "150"
 	}
-
 	if height == "" {
 		height = "20"
 	}
-
 	widthInt, err := strconv.Atoi(width)
 	if err != nil {
 		http.Error(w, "Invalid width value", 400)
 	}
-
 	heightInt, err := strconv.Atoi(height)
 	if err != nil {
 		http.Error(w, "Invalid width value", 400)
 	}
-
-	// TODO check if VM is already started
 
 	restMakeMeConsole(w, r, widthInt, heightInt, containerName)
 })
@@ -260,7 +256,6 @@ func restWriteContainerInfo(w http.ResponseWriter, container containerDbInfo) {
 		http.Error(w, "Internal server error", 500)
 		return
 	}
-
 }
 
 
