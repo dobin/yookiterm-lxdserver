@@ -13,43 +13,6 @@ import (
 )
 
 
-func restReturnExistingContainer(uuid string, userId string, containerBaseName string, w http.ResponseWriter) {
-	body := make(map[string]interface{})
-
-	var containerName string
-	var containerIP string
-	var containerUsername string
-	var containerPassword string
-	var containerExpiry int64
-
-	// get container data
-	containerName, containerIP, containerUsername, containerPassword, containerExpiry, err := dbGetContainer(uuid)
-	if err != nil || containerName == "" {
-		logger.Errorf("restReturnExistingContainer: Error getting container: ", containerName)
-		http.Error(w, "Container not found", 404)
-		return
-	}
-
-	if !config.ServerConsoleOnly {
-		body["ip"] = containerIP
-		body["username"] = containerUsername
-		body["password"] = containerPassword
-		body["fqdn"] = fmt.Sprintf("%s.lxd", containerName)
-	}
-	body["id"] = uuid
-	body["expiry"] = containerExpiry
-
-	// Return to the client
-	body["status"] = containerStarted
-	err = json.NewEncoder(w).Encode(body)
-	if err != nil {
-		lxdForceDelete(lxdDaemon, containerName)
-		http.Error(w, "Internal server error", 500)
-		return
-	}
-}
-
-
 func restCreateContainer(userId string, containerBaseName string, w http.ResponseWriter, requestIP string) {
 	body := make(map[string]interface{})
 
@@ -195,7 +158,6 @@ users:
 		return
 	}
 }
-
 
 
 func containerGetIp(containerName string) (error, string) {

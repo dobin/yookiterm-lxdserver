@@ -17,32 +17,8 @@ import b64 "encoding/base64"
 
 
 // REST
-// Authenticated
-var restContainerListHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Content-Type", "application/json")
-
-	userId := getUserId(r)
-
-	err, containerList := dbGetContainerListForUser(userId)
-	if err != nil {
-		http.Error(w, "Internal server error", 500)
-		return
-	}
-
-	// add my hostname to every container
-
-
-	err = json.NewEncoder(w).Encode(containerList)
-	if err != nil {
-		http.Error(w, "Internal server error", 500)
-		return
-	}
-})
-
-
-// REST
-// Public
+// Public / Not-Authenticated
+// URL: /1.0
 func restStatusHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
@@ -97,44 +73,20 @@ func restStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 // REST
 // Authenticated
-var restContainerHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// URL: /1.0/container
+var restContainerListHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 
-	vars := mux.Vars(r)
-	containerBaseName := vars["containerBaseName"]
-
 	userId := getUserId(r)
 
-	logger.Infof("restContainerHandler: start container %s from user %s", containerBaseName, userId)
-
-	body := make(map[string]interface{})
-
-	var containerName string
-	var containerIP string
-	var containerUsername string
-	var containerPassword string
-	var containerExpiry int64
-
-	containerName, containerIP, containerUsername, containerPassword, containerExpiry, err := dbGetContainerForUser(userId, containerBaseName)
-	if err != nil || containerName == "" {
-		body["isStarted"] = false
-	} else {
-		body["isStarted"] = true
+	err, containerList := dbGetContainerListForUser(userId)
+	if err != nil {
+		http.Error(w, "Internal server error", 500)
+		return
 	}
 
-	body["containerName"] = containerName
-	body["containerBaseName"] = containerBaseName
-
-	body["ip"] = containerIP
-	body["username"] = containerUsername
-	body["password"] = containerPassword
-	body["fqdn"] = fmt.Sprintf("%s.lxd", containerName)
-//	body["id"] = id
-	body["expiry"] = containerExpiry
-	body["status"] = containerStarted
-
-	err = json.NewEncoder(w).Encode(body)
+	err = json.NewEncoder(w).Encode(containerList)
 	if err != nil {
 		http.Error(w, "Internal server error", 500)
 		return
@@ -144,59 +96,39 @@ var restContainerHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.
 
 // REST
 // Authenticated
-var restContainerStartHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// URL: /1.0/container/{containerBaseName}
+var restContainerHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 
 	vars := mux.Vars(r)
 	containerBaseName := vars["containerBaseName"]
-
 	userId := getUserId(r)
 
-	logger.Infof("Starting containerBase %s for user %s", containerBaseName, userId)
+	logger.Infof("restContainerHandler: start container %s from user %s", containerBaseName, userId)
 
-	doesExist, _, _ := dbContainerExists(userId, containerBaseName)
-	if doesExist {
-		logger.Infof("Container already exists, returning data")
+
+	container, err := dbGetContainerForUser(userId, containerBaseName)
+
+	if err != nil {
 		body := make(map[string]interface{})
-		var containerName string
-		var containerIP string
-		var containerUsername string
-		var containerPassword string
-		var containerExpiry int64
-
-		containerName, containerIP, containerUsername, containerPassword, containerExpiry, err := dbGetContainerForUser(userId, containerBaseName)
-
-		// Not necessary
-		if err != nil || containerName == "" {
-			http.Error(w, "Container not found", 404)
-			return
-		}
-
-		body["isStarted"] = true
-		body["ip"] = containerIP
-		body["username"] = containerUsername
-		body["password"] = containerPassword
-		body["fqdn"] = fmt.Sprintf("%s.lxd", containerName)
-	//	body["id"] = id
-		body["expiry"] = containerExpiry
-		body["status"] = containerStarted
-
+		body["isStarted"] = false
 		err = json.NewEncoder(w).Encode(body)
 		if err != nil {
 			http.Error(w, "Internal server error", 500)
 			return
 		}
 	} else {
-		restCreateContainer(userId, containerBaseName, w, "1.1.1.1")
+		restWriteContainerInfo(w, container);
+		return
 	}
 })
 
 
 // REST
 // Authenticated
-// Admin only
-var restContainerStopHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// URL: /1.0/container/{containerBaseName}/start
+var restContainerStartHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 
@@ -204,12 +136,35 @@ var restContainerStopHandler = http.HandlerFunc(func(w http.ResponseWriter, r *h
 	containerBaseName := vars["containerBaseName"]
 	userId := getUserId(r)
 
+	container, err := dbGetContainerForUser(userId, containerBaseName)
+	if err != nil {
+		logger.Infof("Container already exists, returning data")
+		restWriteContainerInfo(w, container);
+		return;
+	} else {
+		logger.Infof("Starting containerBase %s for user %s", containerBaseName, userId)
+		restCreateContainer(userId, containerBaseName, w, "1.1.1.1")
+		return;
+	}
+})
+
+
+// REST
+// Authenticated, Admin only
+// URL: /1.0/container/{containerBaseName}/stop
+var restContainerStopHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
 	if ! userIsAdmin(r) {
 		logger.Infof("User %s which is not admin tried to stop a container %s", userId, containerBaseName)
-
 		http.Error(w, "Internal server error", 500)
 		return
 	}
+
+	vars := mux.Vars(r)
+	containerBaseName := vars["containerBaseName"]
+	userId := getUserId(r)
 
 	body := make(map[string]interface{})
 
@@ -237,10 +192,12 @@ var restContainerStopHandler = http.HandlerFunc(func(w http.ResponseWriter, r *h
 
 // REST
 // Authenticated
+// URL: /1.0/container/{containerBaseName}/console
 var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	containerBaseName := vars["containerBaseName"]
 
+	// manual validation
 	token := r.FormValue("token");
 	isAuth, userId := jwtValidate(token)
 	if isAuth == false {
@@ -282,6 +239,30 @@ var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 
 
 /********************/
+
+func restWriteContainerInfo(w http.ResponseWriter, container containerDbInfo) {
+	body := make(map[string]interface{})
+
+
+	body["containerName"] = container.ContainerName
+	body["containerBaseName"] = container.ContainerBaseName
+
+	body["isStarted"] = true
+	body["ip"] = container.ContainerIP
+	body["username"] = container.ContainerUsername
+	body["password"] = container.ContainerPassword
+	//body["fqdn"] = fmt.Sprintf("%s.lxd", containerName)
+	body["expiry"] = container.ContainerExpiry
+	body["status"] = container.ContainerStatus
+
+	err := json.NewEncoder(w).Encode(body)
+	if err != nil {
+		http.Error(w, "Internal server error", 500)
+		return
+	}
+
+}
+
 
 func restClientIP(r *http.Request) (string, string, error) {
 	var address string

@@ -30,62 +30,6 @@ type containerDbInfo struct {
 }
 
 
-func dbSetup() error {
-	var err error
-
-	db, err = sql.Open("sqlite3", fmt.Sprintf("lxd-demo.sqlite3?_busy_timeout=5000&_txlock=exclusive"))
-	if err != nil {
-		return err
-	}
-
-	err = dbCreateTables()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-
-func dbCreateTables() error {
-	_, err := db.Exec(`
-CREATE TABLE IF NOT EXISTS sessions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-		userId VARCHAR(64) NOT NULL,
-		containerBaseName VARCHAR(64) NOT NULL,
-    uuid VARCHAR(36) NOT NULL,
-    status INTEGER NOT NULL,
-    container_name VARCHAR(64) NOT NULL,
-    container_ip VARCHAR(39) NOT NULL,
-    container_username VARCHAR(10) NOT NULL,
-    container_password VARCHAR(10) NOT NULL,
-    container_expiry INT NOT NULL,
-    request_date INT NOT NULL,
-    request_ip VARCHAR(39) NOT NULL,
-    request_terms VARCHAR(64) NOT NULL
-);
-`)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-
-func dbActiveContainer() ([][]interface{}, error) {
-	q := fmt.Sprintf("SELECT id, container_name, container_expiry FROM sessions WHERE status=%d;", dbContainerStatusRunning)
-	var containerID int
-	var containerName string
-	var containerExpiry int
-	outfmt := []interface{}{containerID, containerName, containerExpiry}
-	result, err := dbQueryScan(db, q, nil, outfmt)
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
-}
 
 
 func dbContainerExists(userId string, containerBaseName string) (bool, string, string) {
@@ -137,33 +81,37 @@ func dbGetContainerListForUser(userId string) (error, []containerDbInfo) {
 		containerList = append(containerList, container)
 	}
 
-
 	return nil, containerList
 }
 
 
-func dbGetContainerForUser(userId string, containerBaseName string) (string, string, string, string, int64, error) {
-	var containerName string
-	var containerIP string
-	var containerUsername string
-	var containerPassword string
-	var containerExpiry int64
+func dbGetContainerForUser(userId string, containerBaseName string) (containerDbInfo, error) {
+	var container containerDbInfo;
 
-	rows, err := dbQuery(db, "SELECT container_name, container_ip, container_username, container_password, container_expiry FROM sessions WHERE status=? AND userId=? AND containerBaseName=?;", dbContainerStatusRunning, userId, containerBaseName)
+	var sqlquery = "SELECT container_name, container_ip, container_username, container_password, container_expiry, status, containerBaseName"
+	sqlquery += " FROM sessions WHERE status=? AND userId=? AND containerBaseName=?;"
+	rows, err := dbQuery(db, sqlquery, dbContainerStatusRunning, userId, containerBaseName)
 	if err != nil {
-		return "", "", "", "", 0, err
+		return containerDbInfo{}, err
 	}
-
 	defer rows.Close()
 
 	for rows.Next() {
-		rows.Scan(&containerName, &containerIP, &containerUsername, &containerPassword, &containerExpiry)
+		rows.Scan(
+			&container.ContainerName,
+			&container.ContainerIP,
+			&container.ContainerUsername,
+			&container.ContainerPassword,
+			&container.ContainerExpiry,
+			&container.ContainerStatus,
+			&container.ContainerBaseName,
+		)
 	}
 
-	return containerName, containerIP, containerUsername, containerPassword, containerExpiry, nil
+	return container, nil
 }
 
-
+/*
 func dbGetContainer(id string) (string, string, string, string, int64, error) {
 	var containerName string
 	var containerIP string
@@ -175,7 +123,6 @@ func dbGetContainer(id string) (string, string, string, string, int64, error) {
 	if err != nil {
 		return "", "", "", "", 0, err
 	}
-
 	defer rows.Close()
 
 	for rows.Next() {
@@ -184,7 +131,7 @@ func dbGetContainer(id string) (string, string, string, string, int64, error) {
 
 	return containerName, containerIP, containerUsername, containerPassword, containerExpiry, nil
 }
-
+*/
 
 func dbNewContainer(id string, userId string, containerBaseName string, containerName string, containerIP string, containerUsername string, containerPassword string, containerExpiry int64, requestDate int64, requestIP string) (int64, error) {
 	res, err := db.Exec(`
@@ -219,6 +166,8 @@ func dbExpire(id int64) error {
 	_, err := db.Exec("UPDATE sessions SET status=? WHERE id=?;", dbContainerStatusDeleted, id)
 	return err
 }
+
+
 func dbExpireUuid(uuid string) error {
 	_, err := db.Exec("UPDATE sessions SET status=? WHERE uuid=?;", dbContainerStatusDeleted, uuid)
 	return err
@@ -305,6 +254,7 @@ func dbQueryRowScan(db *sql.DB, q string, args []interface{}, outargs []interfac
 	}
 }
 
+
 func dbQuery(db *sql.DB, q string, args ...interface{}) (*sql.Rows, error) {
 	for {
 		result, err := db.Query(q, args...)
@@ -317,6 +267,7 @@ func dbQuery(db *sql.DB, q string, args ...interface{}) (*sql.Rows, error) {
 		time.Sleep(1 * time.Second)
 	}
 }
+
 
 func dbDoQueryScan(db *sql.DB, q string, args []interface{}, outargs []interface{}) ([][]interface{}, error) {
 	rows, err := db.Query(q, args...)
@@ -363,6 +314,7 @@ func dbDoQueryScan(db *sql.DB, q string, args []interface{}, outargs []interface
 	return result, nil
 }
 
+
 func dbQueryScan(db *sql.DB, q string, inargs []interface{}, outfmt []interface{}) ([][]interface{}, error) {
 	for {
 		result, err := dbDoQueryScan(db, q, inargs, outfmt)
@@ -374,4 +326,62 @@ func dbQueryScan(db *sql.DB, q string, inargs []interface{}, outfmt []interface{
 		}
 		time.Sleep(1 * time.Second)
 	}
+}
+
+
+func dbSetup() error {
+	var err error
+
+	db, err = sql.Open("sqlite3", fmt.Sprintf("lxd-demo.sqlite3?_busy_timeout=5000&_txlock=exclusive"))
+	if err != nil {
+		return err
+	}
+
+	err = dbCreateTables()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+
+func dbCreateTables() error {
+	_, err := db.Exec(`
+CREATE TABLE IF NOT EXISTS sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+		userId VARCHAR(64) NOT NULL,
+		containerBaseName VARCHAR(64) NOT NULL,
+    uuid VARCHAR(36) NOT NULL,
+    status INTEGER NOT NULL,
+    container_name VARCHAR(64) NOT NULL,
+    container_ip VARCHAR(39) NOT NULL,
+    container_username VARCHAR(10) NOT NULL,
+    container_password VARCHAR(10) NOT NULL,
+    container_expiry INT NOT NULL,
+    request_date INT NOT NULL,
+    request_ip VARCHAR(39) NOT NULL,
+    request_terms VARCHAR(64) NOT NULL
+);
+`)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+
+func dbActiveContainer() ([][]interface{}, error) {
+	q := fmt.Sprintf("SELECT id, container_name, container_expiry FROM sessions WHERE status=%d;", dbContainerStatusRunning)
+	var containerID int
+	var containerName string
+	var containerExpiry int
+	outfmt := []interface{}{containerID, containerName, containerExpiry}
+	result, err := dbQueryScan(db, q, nil, outfmt)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
