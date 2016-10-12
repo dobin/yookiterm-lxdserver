@@ -156,15 +156,15 @@ var restContainerStopHandler = http.HandlerFunc(func(w http.ResponseWriter, r *h
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 
+	vars := mux.Vars(r)
+	containerBaseName := vars["containerBaseName"]
+	userId := getUserId(r)
+
 	if ! userIsAdmin(r) {
 		logger.Infof("User %s which is not admin tried to stop a container %s", userId, containerBaseName)
 		http.Error(w, "Internal server error", 500)
 		return
 	}
-
-	vars := mux.Vars(r)
-	containerBaseName := vars["containerBaseName"]
-	userId := getUserId(r)
 
 	body := make(map[string]interface{})
 
