@@ -25,12 +25,11 @@ func restCreateContainer(userId string, containerBaseName string, w http.Respons
 	containerUsername := petname.Adjective()
 	containerPassword := petname.Adjective()
 	id := uuid.NewRandom().String()
-	//sshPort := config.ContainerSshBasePort + 1
 
 	// Config
 	ctConfig := map[string]string{}
 
-	ctConfig["security.nesting"] = "true"
+	ctConfig["security.nesting"] = "false"
 	if config.QuotaCPU > 0 {
 		ctConfig["limits.cpu"] = fmt.Sprintf("%d", config.QuotaCPU)
 	}
@@ -107,15 +106,7 @@ users:
 	}
 	logger.Debugf("restCreateContainer: Post-start")
 
-	// Get the IP (30s timeout)
-	// Note: Takes too long, skipping
-	var containerIP string
-	if !config.ServerConsoleOnly {
-			containerIP = ""
-			// containerIP = containerGetIp(containerName)
-	} else {
-		containerIP = "console-only"
-	}
+	_, containerIP := containerGetIp(containerName)
 
 	containerExpiry := time.Now().Unix() + int64(config.QuotaTime)
 
@@ -144,12 +135,16 @@ users:
 		restStartContainerError(w, err, containerUnknownError)
 		return
 	}
+
+	// Create timer to destroy that container after configured timeframe
 	time.AfterFunc(duration, func() {
 		lxdForceDelete(lxdDaemon, containerName)
 		dbExpire(containerID)
 	})
+	// Create thread which gets the IP
+	//go storeContainerIp(containerID, containerName)
 
-	// Return to the client
+	// Return data to the client
 	body["status"] = containerStarted
 	err = json.NewEncoder(w).Encode(body)
 	if err != nil {
@@ -160,10 +155,27 @@ users:
 }
 
 
+func storeContainerIp(containerID int64, containerName string) {
+	logger.Infof("Trying to get ip... ")
+
+	err, ip := containerGetIp(containerName)
+	if err != nil {
+		logger.Errorf("Could not get IP :(")
+		return
+	}
+
+	logger.Infof("Found ip: %s", ip)
+	//dbWriteContainerIp(containerID, ip)
+
+}
+
+
 func containerGetIp(containerName string) (error, string) {
 	var containerIP string
-	time.Sleep(2 * time.Second)
-	timeout := 30
+
+	time.Sleep(1 * time.Second)
+
+	timeout := 16
 	for timeout != 0 {
 		timeout--
 		ct, err := lxdDaemon.ContainerState(containerName)
@@ -187,9 +199,9 @@ func containerGetIp(containerName string) (error, string) {
 					continue
 				}
 
-				if config.ServerIPv6Only && addr.Family != "inet6" {
-					continue
-				}
+				//if config.ServerIPv6Only && addr.Family != "inet6" {
+				//	continue
+				//}
 
 				containerIP = addr.Address
 				break

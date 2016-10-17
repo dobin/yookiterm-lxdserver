@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -244,10 +245,9 @@ func restWriteContainerInfo(w http.ResponseWriter, container containerDbInfo) {
 	body["containerBaseName"] = container.ContainerBaseName
 
 	body["isStarted"] = true
-	body["ip"] = container.ContainerIP
+	body["sshPort"] = strings.Split(container.ContainerIP, ".")[3]
 	body["username"] = container.ContainerUsername
 	body["password"] = container.ContainerPassword
-	//body["fqdn"] = fmt.Sprintf("%s.lxd", containerName)
 	body["expiry"] = container.ContainerExpiry
 	body["status"] = container.ContainerStatus
 
