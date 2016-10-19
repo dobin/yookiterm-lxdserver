@@ -47,6 +47,7 @@ var restAdminExecHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.
 	body := make(map[string]interface{})
 	body["output"] = output
 	body["error"] = err
+	body["host"] = config.ServerHostnameAlias
 
 	err = json.NewEncoder(w).Encode(body)
 	if err != nil {
