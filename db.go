@@ -31,7 +31,7 @@ type containerDbInfo struct {
 
 
 
-
+// Check if a container exists for user userId and containerBaseName
 func dbContainerExists(userId string, containerBaseName string) (bool, string, string) {
 	var uuid string
 
@@ -85,14 +85,14 @@ func dbGetContainerListForUser(userId string) (error, []containerDbInfo) {
 }
 
 
-func dbGetContainerForUser(userId string, containerBaseName string) (containerDbInfo, error) {
+func dbGetContainerForUser(userId string, containerBaseName string) (containerDbInfo, bool) {
 	var container containerDbInfo;
 
 	var sqlquery = "SELECT container_name, container_ip, container_username, container_password, container_expiry, status, containerBaseName"
 	sqlquery += " FROM sessions WHERE status=? AND userId=? AND containerBaseName=?;"
 	rows, err := dbQuery(db, sqlquery, dbContainerStatusRunning, userId, containerBaseName)
 	if err != nil {
-		return containerDbInfo{}, err
+		return containerDbInfo{}, false
 	}
 	defer rows.Close()
 
@@ -108,30 +108,9 @@ func dbGetContainerForUser(userId string, containerBaseName string) (containerDb
 		)
 	}
 
-	return container, nil
+	return container, true
 }
 
-/*
-func dbGetContainer(id string) (string, string, string, string, int64, error) {
-	var containerName string
-	var containerIP string
-	var containerUsername string
-	var containerPassword string
-	var containerExpiry int64
-
-	rows, err := dbQuery(db, "SELECT container_name, container_ip, container_username, container_password, container_expiry FROM sessions WHERE status=? AND uuid=?;", dbContainerStatusRunning, id)
-	if err != nil {
-		return "", "", "", "", 0, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		rows.Scan(&containerName, &containerIP, &containerUsername, &containerPassword, &containerExpiry)
-	}
-
-	return containerName, containerIP, containerUsername, containerPassword, containerExpiry, nil
-}
-*/
 
 func dbNewContainer(id string, userId string, containerBaseName string, containerName string, containerIP string, containerUsername string, containerPassword string, containerExpiry int64, requestDate int64, requestIP string) (int64, error) {
 	res, err := db.Exec(`
@@ -159,6 +138,12 @@ INSERT INTO sessions (
 	}
 
 	return containerID, nil
+}
+
+
+func dbUpdateContainerExpire(uuid string, expiryDate int64) error {
+	_, err := db.Exec("UPDATE sessions SET container_expiry=? WHERE id=?;", expiryDate, uuid)
+	return err
 }
 
 

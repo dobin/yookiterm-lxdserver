@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -106,15 +107,12 @@ var restContainerHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.
 	containerBaseName := vars["containerBaseName"]
 	userId := getUserId(r)
 
-	logger.Infof("restContainerHandler: start container %s from user %s", containerBaseName, userId)
+	container, doesExist := dbGetContainerForUser(userId, containerBaseName)
 
-
-	container, err := dbGetContainerForUser(userId, containerBaseName)
-
-	if err != nil {
+	if doesExist == false {
 		body := make(map[string]interface{})
 		body["isStarted"] = false
-		err = json.NewEncoder(w).Encode(body)
+		err := json.NewEncoder(w).Encode(body)
 		if err != nil {
 			http.Error(w, "Internal server error", 500)
 			return
@@ -137,9 +135,9 @@ var restContainerStartHandler = http.HandlerFunc(func(w http.ResponseWriter, r *
 	containerBaseName := vars["containerBaseName"]
 	userId := getUserId(r)
 
-	container, err := dbGetContainerForUser(userId, containerBaseName)
-	if err != nil {
-		logger.Infof("Container already exists, returning data")
+	container, doesExist := dbGetContainerForUser(userId, containerBaseName)
+	if doesExist {
+		logger.Infof("Container %s for user %s already exists, get data", containerBaseName, userId)
 		restWriteContainerInfo(w, container);
 		return;
 	} else {
@@ -198,7 +196,7 @@ var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 	vars := mux.Vars(r)
 	containerBaseName := vars["containerBaseName"]
 
-	// manual validation
+	// manual validation of auth token because its websocket
 	token := r.FormValue("token");
 	isAuth, userId := jwtValidate(token)
 	if isAuth == false {
@@ -206,12 +204,17 @@ var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 		return
 	}
 
-	logger.Infof("restContainerConsoleHandler: start console for container %s for user %s", containerBaseName, userId)
+	logger.Infof("try creating a websocket console for container %s for user %s", containerBaseName, userId)
 
-	// TODO replace with db call
-	// TODO check if VM is already started
+	doesExist, uuid, containerName := dbContainerExists(userId, containerBaseName)
+	if doesExist == false {
+		logger.Errorf("try creating a websocket console for container %s for user %s: container does not exist", containerBaseName, userId)
+		http.Error(w, "Container not found", 404)
+		return
+	}
 
-	containerName := fmt.Sprintf("%s%s", containerBaseName, userId)
+	containerExpiry := time.Now().Unix() + int64(config.QuotaTime)
+	err := dbUpdateContainerExpire(uuid, containerExpiry)
 
 	// Get console width and height
 	width := r.FormValue("width")
@@ -225,10 +228,12 @@ var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 	widthInt, err := strconv.Atoi(width)
 	if err != nil {
 		http.Error(w, "Invalid width value", 400)
+		return
 	}
 	heightInt, err := strconv.Atoi(height)
 	if err != nil {
 		http.Error(w, "Invalid width value", 400)
+		return
 	}
 
 	restMakeMeConsole(w, r, widthInt, heightInt, containerName)

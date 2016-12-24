@@ -253,7 +253,6 @@ func initialContainerCleanupHandler() error {
 }
 
 
-
 func restStartContainerError(w http.ResponseWriter, err error, code statusCode) {
 	body := make(map[string]interface{})
 	body["status"] = code
