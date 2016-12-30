@@ -92,11 +92,15 @@ func dbGetContainerForUser(userId string, containerBaseName string) (containerDb
 	sqlquery += " FROM sessions WHERE status=? AND userId=? AND containerBaseName=?;"
 	rows, err := dbQuery(db, sqlquery, dbContainerStatusRunning, userId, containerBaseName)
 	if err != nil {
+		logger.Errorf("Query error")
 		return containerDbInfo{}, false
 	}
 	defer rows.Close()
+	i := 0
 
 	for rows.Next() {
+		i++
+
 		rows.Scan(
 			&container.ContainerName,
 			&container.ContainerIP,
@@ -108,7 +112,11 @@ func dbGetContainerForUser(userId string, containerBaseName string) (containerDb
 		)
 	}
 
-	return container, true
+	if i == 0 {
+		return containerDbInfo{}, false
+	} else {
+		return container, true
+	}
 }
 
 

@@ -245,16 +245,19 @@ var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 func restWriteContainerInfo(w http.ResponseWriter, container containerDbInfo) {
 	body := make(map[string]interface{})
 
-
 	body["containerName"] = container.ContainerName
 	body["containerBaseName"] = container.ContainerBaseName
 
 	body["isStarted"] = true
-	body["sshPort"] = strings.Split(container.ContainerIP, ".")[3]
 	body["username"] = container.ContainerUsername
 	body["password"] = container.ContainerPassword
 	body["expiry"] = container.ContainerExpiry
 	body["status"] = container.ContainerStatus
+	if container.ContainerIP != "" {
+		body["sshPort"] = strings.Split(container.ContainerIP, ".")[3]
+	} else {
+
+	}
 
 	err := json.NewEncoder(w).Encode(body)
 	if err != nil {
