@@ -109,6 +109,7 @@ users:
 	_, containerIP := containerGetIp(containerName)
 
 	containerExpiry := time.Now().Unix() + int64(config.QuotaTime)
+	containerExpiryHard := time.Now().Unix() + int64(config.QuotaTimeMax)
 
 	// Prepare return data
 	if !config.ServerConsoleOnly {
@@ -119,6 +120,7 @@ users:
 	}
 	body["id"] = id
 	body["expiry"] = containerExpiry
+	body["expiryHard"] = containerExpiryHard
 
 	// Setup cleanup code
 	duration, err := time.ParseDuration(fmt.Sprintf("%ds", config.QuotaTime))
@@ -129,7 +131,7 @@ users:
 	}
 
 	// Create container in db
-	containerID, err := dbNewContainer(id, userId, containerBaseName, containerName, containerIP, containerUsername, containerPassword, containerExpiry, requestDate, requestIP)
+	containerID, err := dbNewContainer(id, userId, containerBaseName, containerName, containerIP, containerUsername, containerPassword, containerExpiry, containerExpiryHard, requestDate, requestIP)
 	if err != nil {
 		lxdForceDelete(lxdDaemon, containerName)
 		restStartContainerError(w, err, containerUnknownError)
@@ -145,7 +147,7 @@ users:
 	//go storeContainerIp(containerID, containerName)
 
 	// Return data to the client
-	body["status"] = containerStarted
+	body["container_status"] = containerStarted
 	err = json.NewEncoder(w).Encode(body)
 	if err != nil {
 		lxdForceDelete(lxdDaemon, containerName)
@@ -255,7 +257,7 @@ func initialContainerCleanupHandler() error {
 
 func restStartContainerError(w http.ResponseWriter, err error, code statusCode) {
 	body := make(map[string]interface{})
-	body["status"] = code
+	body["container_status"] = code
 
 	logger.Errorf("restStartContainerError: %s", err)
 

@@ -26,16 +26,17 @@ type containerDbInfo struct {
 	ContainerUsername string
 	ContainerPassword string
 	ContainerExpiry int64
+	ContainerExpiryHard int64
 	ContainerStatus int64
 }
 
 
 
-// Check if a container exists for user userId and containerBaseName
-func dbContainerExists(userId string, containerBaseName string) (bool, string, string) {
+// Check if a container exists for user userId and container_basename
+func dbContainerExists(userId string, container_basename string) (bool, string, string) {
 	var uuid string
 
-	rows, err := dbQuery(db, "SELECT uuid, container_name FROM sessions WHERE userId=? AND containerBaseName=? AND status=?;", userId, containerBaseName, dbContainerStatusRunning)
+	rows, err := dbQuery(db, "SELECT uuid, container_name FROM sessions WHERE userId=? AND container_basename=? AND container_status=?;", userId, container_basename, dbContainerStatusRunning)
 	if err != nil {
 		return false, "", ""
 	}
@@ -58,7 +59,7 @@ func dbContainerExists(userId string, containerBaseName string) (bool, string, s
 func dbGetContainerListForUser(userId string) (error, []containerDbInfo) {
 	var containerList []containerDbInfo
 
-	rows, err := dbQuery(db, "SELECT container_name, containerBaseName, container_ip, container_username, container_password, container_expiry, status FROM sessions WHERE status=? AND userId=?;", dbContainerStatusRunning, userId)
+	rows, err := dbQuery(db, "SELECT container_name, container_basename, container_ip, container_username, container_password, container_expiry, container_expiryhard, container_status FROM sessions WHERE container_status=? AND userId=?;", dbContainerStatusRunning, userId)
 	if err != nil {
 		logger.Errorf("dbquery error")
 		return err, nil
@@ -75,6 +76,7 @@ func dbGetContainerListForUser(userId string) (error, []containerDbInfo) {
 			&container.ContainerUsername,
 			&container.ContainerPassword,
 			&container.ContainerExpiry,
+			&container.ContainerExpiryHard,
 			&container.ContainerStatus,
 		)
 
@@ -85,12 +87,12 @@ func dbGetContainerListForUser(userId string) (error, []containerDbInfo) {
 }
 
 
-func dbGetContainerForUser(userId string, containerBaseName string) (containerDbInfo, bool) {
+func dbGetContainerForUser(userId string, container_basename string) (containerDbInfo, bool) {
 	var container containerDbInfo;
 
-	var sqlquery = "SELECT container_name, container_ip, container_username, container_password, container_expiry, status, containerBaseName"
-	sqlquery += " FROM sessions WHERE status=? AND userId=? AND containerBaseName=?;"
-	rows, err := dbQuery(db, sqlquery, dbContainerStatusRunning, userId, containerBaseName)
+	var sqlquery = "SELECT container_name, container_ip, container_username, container_password, container_expiry, container_expiryhard, container_status, container_basename"
+	sqlquery += " FROM sessions WHERE container_status=? AND userId=? AND container_basename=?;"
+	rows, err := dbQuery(db, sqlquery, dbContainerStatusRunning, userId, container_basename)
 	if err != nil {
 		logger.Errorf("Query error")
 		return containerDbInfo{}, false
@@ -107,6 +109,7 @@ func dbGetContainerForUser(userId string, containerBaseName string) (containerDb
 			&container.ContainerUsername,
 			&container.ContainerPassword,
 			&container.ContainerExpiry,
+			&container.ContainerExpiryHard,
 			&container.ContainerStatus,
 			&container.ContainerBaseName,
 		)
@@ -120,22 +123,24 @@ func dbGetContainerForUser(userId string, containerBaseName string) (containerDb
 }
 
 
-func dbNewContainer(id string, userId string, containerBaseName string, containerName string, containerIP string, containerUsername string, containerPassword string, containerExpiry int64, requestDate int64, requestIP string) (int64, error) {
+func dbNewContainer(id string, userId string, container_basename string, containerName string, containerIP string, containerUsername string, containerPassword string, containerExpiry int64, containerExpiryHard int64, requestDate int64, requestIP string) (int64, error) {
+	containerStatus := dbContainerStatusRunning
+
 	res, err := db.Exec(`
 INSERT INTO sessions (
-	status,
+	container_status,
 	uuid,
 	userId,
-	containerBaseName,
+	container_basename,
 	container_name,
 	container_ip,
 	container_username,
 	container_password,
 	container_expiry,
+	container_expiryhard,
 	request_date,
-	request_ip,
-	request_terms) VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-`, id, userId, containerBaseName, containerName, containerIP, containerUsername, containerPassword, containerExpiry, requestDate, requestIP, "")
+	request_ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+`, containerStatus, id, userId, container_basename, containerName, containerIP, containerUsername, containerPassword, containerExpiry, containerExpiryHard, requestDate, requestIP)
 	if err != nil {
 		return 0, err
 	}
@@ -156,13 +161,13 @@ func dbUpdateContainerExpire(uuid string, expiryDate int64) error {
 
 
 func dbExpire(id int64) error {
-	_, err := db.Exec("UPDATE sessions SET status=? WHERE id=?;", dbContainerStatusDeleted, id)
+	_, err := db.Exec("UPDATE sessions SET container_status=? WHERE id=?;", dbContainerStatusDeleted, id)
 	return err
 }
 
 
 func dbExpireUuid(uuid string) error {
-	_, err := db.Exec("UPDATE sessions SET status=? WHERE uuid=?;", dbContainerStatusDeleted, uuid)
+	_, err := db.Exec("UPDATE sessions SET container_status=? WHERE uuid=?;", dbContainerStatusDeleted, uuid)
 	return err
 }
 
@@ -170,7 +175,7 @@ func dbExpireUuid(uuid string) error {
 func dbActiveContainerCount() (int, error) {
 	var count int
 
-	statement := fmt.Sprintf("SELECT count(*) FROM sessions WHERE status=%d;", dbContainerStatusRunning)
+	statement := fmt.Sprintf("SELECT count(*) FROM sessions WHERE container_status=%d;", dbContainerStatusRunning)
 	err := db.QueryRow(statement).Scan(&count)
 	if err != nil {
 		return 0, err
@@ -183,7 +188,7 @@ func dbActiveContainerCount() (int, error) {
 func dbActiveContainerCountForIP(ip string) (int, error) {
 	var count int
 
-	statement := `SELECT count(*) FROM sessions WHERE status=? AND request_ip=?;`
+	statement := `SELECT count(*) FROM sessions WHERE container_status=? AND request_ip=?;`
 	err := db.QueryRow(statement, dbContainerStatusRunning, ip).Scan(&count)
 	if err != nil {
 		return 0, err
@@ -196,7 +201,7 @@ func dbActiveContainerCountForIP(ip string) (int, error) {
 func dbNextExpire() (int, error) {
 	var expire int
 
-	statement := fmt.Sprintf("SELECT MIN(container_expiry) FROM sessions WHERE status=%d;", dbContainerStatusRunning)
+	statement := fmt.Sprintf("SELECT MIN(container_expiry) FROM sessions WHERE container_status=%d;", dbContainerStatusRunning)
 	err := db.QueryRow(statement).Scan(&expire)
 	if err != nil {
 		return 0, err
@@ -325,7 +330,7 @@ func dbQueryScan(db *sql.DB, q string, inargs []interface{}, outfmt []interface{
 func dbSetup() error {
 	var err error
 
-	db, err = sql.Open("sqlite3", fmt.Sprintf("lxd-demo.sqlite3?_busy_timeout=5000&_txlock=exclusive"))
+	db, err = sql.Open("sqlite3", fmt.Sprintf("yookiterm-lxdserver-db.sqlite3?_busy_timeout=5000&_txlock=exclusive"))
 	if err != nil {
 		return err
 	}
@@ -343,18 +348,21 @@ func dbCreateTables() error {
 	_, err := db.Exec(`
 CREATE TABLE IF NOT EXISTS sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+
+		uuid VARCHAR(36) NOT NULL,
 		userId VARCHAR(64) NOT NULL,
-		containerBaseName VARCHAR(64) NOT NULL,
-    uuid VARCHAR(36) NOT NULL,
-    status INTEGER NOT NULL,
+
+		container_basename VARCHAR(64) NOT NULL,
+    container_status INTEGER NOT NULL,
     container_name VARCHAR(64) NOT NULL,
-    container_ip VARCHAR(39) NOT NULL,
-    container_username VARCHAR(10) NOT NULL,
-    container_password VARCHAR(10) NOT NULL,
+    container_ip VARCHAR(64) NOT NULL,
+    container_username VARCHAR(32) NOT NULL,
+    container_password VARCHAR(32) NOT NULL,
     container_expiry INT NOT NULL,
+		container_expiryhard INT NOT NULL,
+
     request_date INT NOT NULL,
-    request_ip VARCHAR(39) NOT NULL,
-    request_terms VARCHAR(64) NOT NULL
+    request_ip VARCHAR(39) NOT NULL
 );
 `)
 	if err != nil {
@@ -366,7 +374,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 
 func dbActiveContainer() ([][]interface{}, error) {
-	q := fmt.Sprintf("SELECT id, container_name, container_expiry FROM sessions WHERE status=%d;", dbContainerStatusRunning)
+	q := fmt.Sprintf("SELECT id, container_name, container_expiry FROM sessions WHERE container_status=%d;", dbContainerStatusRunning)
 	var containerID int
 	var containerName string
 	var containerExpiry int

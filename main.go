@@ -35,11 +35,11 @@ type serverConfig struct {
 	QuotaProcesses      int      `yaml:"quota_processes"`
 	QuotaSessions       int      `yaml:"quota_sessions"`
 	QuotaTime           int      `yaml:"quota_time"`
+	QuotaTimeMax        int      `yaml:"quota_time_max"`
 	Container           string   `yaml:"container"`
 	Image               string   `yaml:"image"`
 	ServerBannedIPs     []string `yaml:"server_banned_ips"`
 	ServerConsoleOnly   bool     `yaml:"server_console_only"`
-	ServerIPv6Only      bool     `yaml:"server_ipv6_only"`
 	ServerCPUCount      int      `yaml:"server_cpu_count"`
 	ServerContainersMax int      `yaml:"server_containers_max"`
 	ServerMaintenance   bool     `yaml:"server_maintenance"`

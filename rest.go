@@ -55,7 +55,7 @@ func restStatusHandler(w http.ResponseWriter, r *http.Request) {
 	body["client_address"] = address
 	body["client_protocol"] = protocol
 	body["server_console_only"] = config.ServerConsoleOnly
-	body["server_ipv6_only"] = config.ServerIPv6Only
+	//body["server_ipv6_only"] = config.ServerIPv6Only
 	if !config.ServerMaintenance && !failure {
 		body["server_status"] = serverOperational
 	} else {
@@ -252,6 +252,7 @@ func restWriteContainerInfo(w http.ResponseWriter, container containerDbInfo) {
 	body["username"] = container.ContainerUsername
 	body["password"] = container.ContainerPassword
 	body["expiry"] = container.ContainerExpiry
+	body["expiryHard"] = container.ContainerExpiryHard
 	body["status"] = container.ContainerStatus
 	if container.ContainerIP != "" {
 		body["sshPort"] = strings.Split(container.ContainerIP, ".")[3]
