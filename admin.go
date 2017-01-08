@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	//"fmt"
 	"net/http"
 	"os/exec"
 
@@ -27,7 +27,7 @@ var restAdminExecHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.
 	command := vars["command"]
 	userId := getUserId(r)
 
-	fmt.Println("Exec: ", command)
+	logger.Infof("Exec: ", command)
 
 	if ! userIsAdmin(r) {
 		logger.Infof("User %s which is not admin tried to exec %s", userId, command)
@@ -50,6 +50,33 @@ var restAdminExecHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.
 	body["host"] = config.ServerHostnameAlias
 
 	err = json.NewEncoder(w).Encode(body)
+	if err != nil {
+		http.Error(w, "Internal server error", 500)
+		return
+	}
+})
+
+
+
+// REST
+// Authenticated, Admin only
+// URL: /1.0/admin/logs
+var restAdminLogsHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
+	userId := getUserId(r)
+
+	if ! userIsAdmin(r) {
+		logger.Infof("User %s which is not admin tried to access logs", userId)
+		http.Error(w, "Internal server error", 500)
+		return
+	}
+
+	body := make(map[string]interface{})
+
+	body["logs"], _ = dbGetLogs()
+	err := json.NewEncoder(w).Encode(body)
 	if err != nil {
 		http.Error(w, "Internal server error", 500)
 		return

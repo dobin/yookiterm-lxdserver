@@ -138,10 +138,12 @@ var restContainerStartHandler = http.HandlerFunc(func(w http.ResponseWriter, r *
 	container, doesExist := dbGetContainerForUser(userId, containerBaseName)
 	if doesExist {
 		logger.Infof("Container %s for user %s already exists, get data", containerBaseName, userId)
+		auditLog(userId, r, "Get container: " + containerBaseName)
 		restWriteContainerInfo(w, container);
 		return;
 	} else {
 		logger.Infof("Starting containerBase %s for user %s", containerBaseName, userId)
+		auditLog(userId, r, "Create container: " + containerBaseName)
 		restCreateContainer(userId, containerBaseName, w, "1.1.1.1")
 		return;
 	}
@@ -204,6 +206,7 @@ var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 		return
 	}
 
+	auditLog(userId, r, "Get console: " + containerBaseName)
 	logger.Infof("try creating a websocket console for container %s for user %s", containerBaseName, userId)
 
 	doesExist, uuid, containerName := dbContainerExists(userId, containerBaseName)

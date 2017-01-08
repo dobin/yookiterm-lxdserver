@@ -188,6 +188,7 @@ func run() error {
 	// Admin related
 	// Authenticated
 	r.Handle("/1.0/admin/exec/{command}", jwtMiddleware.Handler(restAdminExecHandler))
+	r.Handle("/1.0/admin/logs", jwtMiddleware.Handler(restAdminLogsHandler))
 
 	// Set CORS
 	c := cors.New(cors.Options{

@@ -17,6 +17,7 @@ func getUserId(r *http.Request) string {
 
   if userContext == nil {
     logger.Errorf("Authentication error")
+    auditLog("", r, "Failed authentication")
     return "";
   }
   claims := userContext.(*jwt.Token).Claims.(jwt.MapClaims)
@@ -29,6 +30,7 @@ func userIsAdmin(r *http.Request) bool {
   userContext := context.Get(r, "user")
   if userContext == nil {
     logger.Errorf("Authentication error")
+    auditLog("", r, "Admin interface: failed authentication")
     return false;
   }
 

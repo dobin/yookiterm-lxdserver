@@ -30,6 +30,13 @@ type containerDbInfo struct {
 	ContainerStatus int64
 }
 
+type dbLogEntry struct {
+	UserId string
+	UserIp string
+	Date int64
+	Message string
+}
+
 
 
 // Check if a container exists for user userId and container_basename
@@ -369,7 +376,70 @@ CREATE TABLE IF NOT EXISTS sessions (
 		return err
 	}
 
+	_, err = db.Exec(`
+CREATE TABLE IF NOT EXISTS logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+		userId VARCHAR(64) NOT NULL,
+		userIp VARCHAR(39) NOT NULL,
+		date INT NOT NULL,
+		message VARCHAR(256) NOT NULL
+);
+`)
+	if err != nil {
+		return err
+	}
+
 	return nil
+}
+
+
+func dbInsertLog(userId string, userIp string, message string) error {
+	requestDate := time.Now().Unix()
+
+		_, err := db.Exec(`
+	INSERT INTO logs (
+		userId,
+		userIp,
+		date,
+		message) VALUES (?, ?, ?, ?);
+	`, userId, userIp, requestDate, message)
+
+		if err != nil {
+			return err
+		}
+
+		return nil
+}
+
+
+func dbGetLogs() ([]dbLogEntry, error) {
+	var logEntryList []dbLogEntry
+	var logEntry dbLogEntry;
+
+	var sqlquery = "SELECT userId, userIp, date, message"
+	sqlquery += " FROM logs;"
+	rows, err := dbQuery(db, sqlquery)
+	if err != nil {
+		logger.Errorf("Query error")
+		return logEntryList, err
+	}
+	defer rows.Close()
+	i := 0
+
+	for rows.Next() {
+		i++
+
+		rows.Scan(
+			&logEntry.UserId,
+			&logEntry.UserIp,
+			&logEntry.Date,
+			&logEntry.Message,
+		)
+
+		logEntryList = append(logEntryList, logEntry)
+	}
+
+	return logEntryList, nil
 }
 
 
