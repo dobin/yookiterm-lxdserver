@@ -8,8 +8,8 @@ import (
 
 	"github.com/dustinkirkland/golang-petname"
 	"github.com/pborman/uuid"
-	"github.com/lxc/lxd"
 	"github.com/lxc/lxd/shared"
+	"github.com/lxc/lxd/shared/api"
 )
 
 
@@ -55,7 +55,7 @@ users:
 `, containerUsername, containerPassword)
 	}
 
-	var resp *lxd.Response
+	var resp *api.Response
 
 	// Copy the base image
 	logger.Debugf("restCreateContainer: Pre-copy")
@@ -81,9 +81,9 @@ users:
 		return
 	}
 	if config.QuotaDisk > 0 {
-		ct.Devices["root"] = shared.Device{"type": "disk", "path": "/", "size": fmt.Sprintf("%dGB", config.QuotaDisk)}
+		ct.Devices["root"] = map[string]string{"type": "disk", "path": "/", "size": fmt.Sprintf("%dGB", config.QuotaDisk)}
 	}
-	err = lxdDaemon.UpdateContainerConfig(containerName, ct.Brief())
+	err = lxdDaemon.UpdateContainerConfig(containerName, ct.Writable())
 	if err != nil {
 		lxdForceDelete(lxdDaemon, containerName)
 		restStartContainerError(w, err, containerUnknownError)
