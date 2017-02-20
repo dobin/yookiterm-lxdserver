@@ -31,7 +31,7 @@ func restCreateContainer(userId string, containerBaseName string, w http.Respons
 
 	ctConfig["security.nesting"] = "false"
 	if config.QuotaCPU > 0 {
-		ctConfig["limits.cpu"] = fmt.Sprintf("%d", config.QuotaCPU)
+		ctConfig["limits.cpu.allowance"] = fmt.Sprintf("%d%%", config.QuotaCPU)
 	}
 
 	if config.QuotaRAM > 0 {
