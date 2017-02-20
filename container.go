@@ -147,7 +147,7 @@ users:
 	//go storeContainerIp(containerID, containerName)
 
 	// Return data to the client
-	body["container_status"] = containerStarted
+	body["status"] = containerStarted
 	err = json.NewEncoder(w).Encode(body)
 	if err != nil {
 		lxdForceDelete(lxdDaemon, containerName)
