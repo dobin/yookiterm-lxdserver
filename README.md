@@ -19,6 +19,10 @@ teaching exploit development at an university.
 
 ## Config
 
+Things to update:
+* jwtsecret: A unique random string, keep it secret. Use same for yookiterm-server
+
+
 ```yml
 jwtsecret: "<secret>"
 quota_cpu: 1

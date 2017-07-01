@@ -1,0 +1,21 @@
+jwtsecret: "<choose secret>"
+quota_cpu: 1
+quota_ram: 128
+quota_disk: 5
+quota_sessions: 2
+quota_time: 3000
+quota_time_max: 6000
+quota_processes: 200
+
+server_banned_ips:
+server_console_only: false
+server_containers_max: 50
+server_cpu_count: 2
+
+server_maintenance: false
+
+server_http: true
+server_http_port: ":41443"
+server_hostname_alias: "localhost"
+container_sshbaseport: 50000
+
