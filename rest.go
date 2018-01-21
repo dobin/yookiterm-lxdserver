@@ -138,6 +138,10 @@ var restContainerStartHandler = http.HandlerFunc(func(w http.ResponseWriter, r *
 	container, doesExist := dbGetContainerForUser(userId, containerBaseName)
 	if doesExist {
 		logger.Infof("Container %s for user %s already exists, get data", containerBaseName, userId)
+
+		// Check if the user has "accidently" stopped it, and start it
+		containerStartIfStopped(userId, containerBaseName)
+
 		auditLog(userId, r, "Get container: " + containerBaseName)
 		restWriteContainerInfo(w, container);
 		return;
@@ -147,6 +151,24 @@ var restContainerStartHandler = http.HandlerFunc(func(w http.ResponseWriter, r *
 		restCreateContainer(userId, containerBaseName, w, "1.1.1.1")
 		return;
 	}
+})
+
+
+// REST
+// Authenticated
+// URL: /1.0/container/{containerBaseName}/restart
+var restContainerRestartHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
+	vars := mux.Vars(r)
+	containerBaseName := vars["containerBaseName"]
+	userId := getUserId(r)
+
+	// TODO implement
+	logger.Infof("Restarting containerbase %s for user %s", containerBaseName, userId);
+
+	return;
 })
 
 

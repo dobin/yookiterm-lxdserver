@@ -13,6 +13,22 @@ import (
 )
 
 
+func containerStartIfStopped(userId string, containerBaseName string) {
+	containerName := fmt.Sprintf("%s%s", containerBaseName, userId)
+
+	resp, err := lxdDaemon.Action(containerName, "start", -1, false, false)
+	if err != nil {
+		return
+	}
+	err = lxdDaemon.WaitForSuccess(resp.Operation)
+	if err != nil {
+		return
+	}
+
+	logger.Debugf("")
+}
+
+
 func restCreateContainer(userId string, containerBaseName string, w http.ResponseWriter, requestIP string) {
 	body := make(map[string]interface{})
 
