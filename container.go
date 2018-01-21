@@ -16,16 +16,18 @@ import (
 func containerStartIfStopped(userId string, containerBaseName string) {
 	containerName := fmt.Sprintf("%s%s", containerBaseName, userId)
 
+	logger.Infof("(try) Starting container %s for %s", containerBaseName, userId)
 	resp, err := lxdDaemon.Action(containerName, "start", -1, false, false)
 	if err != nil {
-		return
+			logger.Errorf("Could not start")
+			return
 	}
 	err = lxdDaemon.WaitForSuccess(resp.Operation)
 	if err != nil {
-		return
+			logger.Errorf("Could not start")
+			return
 	}
 
-	logger.Debugf("")
 }
 
 

@@ -179,7 +179,7 @@ func run() error {
 	// Authenticated
 	r.Handle("/1.0/container", jwtMiddleware.Handler(restContainerListHandler))
 	r.Handle("/1.0/container/{containerBaseName}", jwtMiddleware.Handler(restContainerHandler))
-	r.Handle("/1.0/container/{containerBaseName}/start", jwtMiddleware.Handler(restContainerRestartHandler))
+	r.Handle("/1.0/container/{containerBaseName}/restart", jwtMiddleware.Handler(restContainerRestartHandler))
 	r.Handle("/1.0/container/{containerBaseName}/start", jwtMiddleware.Handler(restContainerStartHandler))
 	r.Handle("/1.0/container/{containerBaseName}/stop", jwtMiddleware.Handler(restContainerStopHandler))
 	// Websockets cannot contain additional header, so authentication is
