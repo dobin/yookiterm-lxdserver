@@ -89,9 +89,9 @@ users:
 		ContainerOnly: true,
 	}
 
-	source, _, err := lxdDaemon.GetContainer(config.Container)
+	source, _, err := lxdDaemon.GetContainer(containerBaseName)
 	if err != nil {
-		restStartContainerError(w, err, containerUnknownError)
+		restStartContainerError(w, fmt.Errorf("GetContainer error: %s", err.Error()), containerUnknownError)
 		return
 	}
 
@@ -100,12 +100,12 @@ users:
 
 	rop, err = lxdDaemon.CopyContainer(lxdDaemon, *source, &args)
 	if err != nil {
-		restStartContainerError(w, err, containerUnknownError)
+		restStartContainerError(w, fmt.Errorf("CopyContainer error: %s", err.Error()), containerUnknownError)
 		return
 	}
 	err = rop.Wait()
 	if err != nil {
-		restStartContainerError(w, err, containerUnknownError)
+		restStartContainerError(w, fmt.Errorf("CopyContainer error: %s", err.Error()), containerUnknownError)
 		return
 	}
 	logger.Debugf("restCreateContainer: Post-copy")

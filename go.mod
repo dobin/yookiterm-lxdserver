@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/auth0/go-jwt-middleware v1.0.1
 	github.com/dustinkirkland/golang-petname v0.0.0-20191129215211-8e5a1ed0cff0
-	github.com/form3tech-oss/jwt-go v3.2.2+incompatible
+	github.com/form3tech-oss/jwt-go v3.2.5+incompatible
 	github.com/gorilla/context v1.1.1
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0

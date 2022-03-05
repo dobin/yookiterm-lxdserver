@@ -105,7 +105,7 @@ func run() error {
 	}
 
 	// Connect to the LXD daemon
-	lxdDaemon, err = lxd.ConnectLXDUnix("", nil)
+	lxdDaemon, err = lxd.ConnectLXDUnix("/var/snap/lxd/common/lxd/unix.socket", nil)
 	if err != nil {
 		return fmt.Errorf("Unable to connect to LXD: %s", err)
 	}
@@ -154,7 +154,7 @@ func run() error {
 	})
 	handler := c.Handler(r)
 
-	logger.Infof("Yookiterm LXD server 0.3")
+	logger.Infof("Yookiterm LXD server 0.4")
 	logger.Infof("Listening HTTP on: %s", config.ServerHttpPort)
 	err = http.ListenAndServe(config.ServerHttpPort, handler)
 	if err != nil {

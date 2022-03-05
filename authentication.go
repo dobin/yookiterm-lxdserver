@@ -6,11 +6,10 @@ import (
 
 	jwtmiddleware "github.com/auth0/go-jwt-middleware"
 	"github.com/form3tech-oss/jwt-go"
-	"github.com/gorilla/context"
 )
 
 func getUserId(r *http.Request) string {
-	userContext := context.Get(r, "user")
+	userContext := r.Context().Value("user")
 
 	if userContext == nil {
 		logger.Errorf("Authentication error")
@@ -24,7 +23,7 @@ func getUserId(r *http.Request) string {
 }
 
 func userIsAdmin(r *http.Request) bool {
-	userContext := context.Get(r, "user")
+	userContext := r.Context().Value("user")
 	if userContext == nil {
 		logger.Errorf("Authentication error")
 		auditLog("", r, "Admin interface: failed authentication")
