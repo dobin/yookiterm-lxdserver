@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	jwtmiddleware "github.com/auth0/go-jwt-middleware"
 	"github.com/form3tech-oss/jwt-go"
 )
 
@@ -35,13 +34,6 @@ func userIsAdmin(r *http.Request) bool {
 
 	return isAdmin
 }
-
-var jwtMiddleware = jwtmiddleware.New(jwtmiddleware.Options{
-	ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
-		return ([]byte(config.Jwtsecret)), nil
-	},
-	SigningMethod: jwt.SigningMethodHS256,
-})
 
 func jwtValidate(tokenString string) (bool, string) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
