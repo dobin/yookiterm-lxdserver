@@ -7,11 +7,9 @@ import (
 	"os/exec"
 
 	"github.com/gorilla/mux"
-
 )
 
-
-func execCommand(bashCommand string ) (error, string) {
+func execCommand(bashCommand string) (error, string) {
 	out, err := exec.Command(bashCommand).Output()
 	return err, string(out)
 }
@@ -29,7 +27,7 @@ var restAdminExecHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.
 
 	logger.Infof("Exec: ", command)
 
-	if ! userIsAdmin(r) {
+	if !userIsAdmin(r) {
 		logger.Infof("User %s which is not admin tried to exec %s", userId, command)
 
 		http.Error(w, "Internal server error", 500)
@@ -39,9 +37,12 @@ var restAdminExecHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.
 	var output string
 	var err error
 	switch command {
-	case "checkout": err, output = execCommand("./adminscripts/updatecontainer.sh");
-	case "allowfw": err, output = execCommand("./adminscripts/fw-allow.sh");
-	case "blockfw": err, output = execCommand("./adminscripts/fw-block.sh");
+	case "checkout":
+		err, output = execCommand("./adminscripts/updatecontainer.sh")
+	case "allowfw":
+		err, output = execCommand("./adminscripts/fw-allow.sh")
+	case "blockfw":
+		err, output = execCommand("./adminscripts/fw-block.sh")
 	}
 
 	body := make(map[string]interface{})
@@ -56,8 +57,6 @@ var restAdminExecHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.
 	}
 })
 
-
-
 // REST
 // Authenticated, Admin only
 // URL: /1.0/admin/logs
@@ -67,7 +66,7 @@ var restAdminLogsHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.
 
 	userId := getUserId(r)
 
-	if ! userIsAdmin(r) {
+	if !userIsAdmin(r) {
 		logger.Infof("User %s which is not admin tried to access logs", userId)
 		http.Error(w, "Internal server error", 500)
 		return
@@ -83,7 +82,6 @@ var restAdminLogsHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.
 	}
 })
 
-
 // REST
 // Authenticated, Admin only
 // URL: /1.0/admin/stats
@@ -93,7 +91,7 @@ var restAdminStatsHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http
 
 	userId := getUserId(r)
 
-	if ! userIsAdmin(r) {
+	if !userIsAdmin(r) {
 		logger.Infof("User %s which is not admin tried to access logs", userId)
 		http.Error(w, "Internal server error", 500)
 		return
@@ -108,9 +106,8 @@ var restAdminStatsHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http
 		m[log.UserId] += 1
 	}
 
-
 	type userLog struct {
-		Username string
+		Username   string
 		Logincount int
 	}
 	var userLogs []userLog

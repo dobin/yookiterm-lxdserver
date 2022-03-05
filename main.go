@@ -3,72 +3,70 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
-	"math/rand"
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/lxc/lxd"
-	//"gopkg.in/fsnotify.v0"
-	"gopkg.in/yaml.v2"
+	"github.com/juju/loggo"
+	lxd "github.com/lxc/lxd/client"
 	"github.com/rs/cors"
-  "github.com/howbazaar/loggo"
+	"gopkg.in/yaml.v2"
 )
 
 // Global variables
-var lxdDaemon *lxd.Client
+var lxdDaemon lxd.ContainerServer
 var config serverConfig
 
 var logger = loggo.GetLogger("project.main")
-
 
 func initLogger() {
 	logger.SetLogLevel(loggo.DEBUG)
 }
 
-
 type serverConfig struct {
-	QuotaCPU            int      `yaml:"quota_cpu"`
-	QuotaRAM            int      `yaml:"quota_ram"`
-	QuotaDisk           int      `yaml:"quota_disk"`
-	QuotaProcesses      int      `yaml:"quota_processes"`
-	QuotaSessions       int      `yaml:"quota_sessions"`
-	QuotaTime           int      `yaml:"quota_time"`
-	QuotaTimeMax        int      `yaml:"quota_time_max"`
-	Container           string   `yaml:"container"`
-	Image               string   `yaml:"image"`
-	ServerBannedIPs     []string `yaml:"server_banned_ips"`
-	ServerConsoleOnly   bool     `yaml:"server_console_only"`
-	ServerCPUCount      int      `yaml:"server_cpu_count"`
-	ServerContainersMax int      `yaml:"server_containers_max"`
-	ServerMaintenance   bool     `yaml:"server_maintenance"`
-	ServerTerms         string   `yaml:"server_terms"`
-	Jwtsecret           string   `yaml:"jwtsecret"`
-	ServerHttp          bool     `yaml:"server_http"`
-	ServerHttpPort      string   `yaml:"server_http_port"`
-	ServerHttps         bool     `yaml:"server_https"`
-	ServerHttpsPort     string   `yaml:"server_https_port"`
-	ServerHttpsCertFile string   `yaml:"server_https_cert_file"`
-	ServerHttpsKeyFile  string   `yaml:"server_https_key_file"`
-	ServerHostnameAlias string   `yaml:"server_hostname_alias"`
-	ContainerSshBasePort int     `yaml:"container_sshbaseport"`
+	QuotaCPU             int      `yaml:"quota_cpu"`
+	QuotaRAM             int      `yaml:"quota_ram"`
+	QuotaDisk            int      `yaml:"quota_disk"`
+	QuotaProcesses       int      `yaml:"quota_processes"`
+	QuotaSessions        int      `yaml:"quota_sessions"`
+	QuotaTime            int      `yaml:"quota_time"`
+	QuotaTimeMax         int      `yaml:"quota_time_max"`
+	Container            string   `yaml:"container"`
+	Image                string   `yaml:"image"`
+	ServerBannedIPs      []string `yaml:"server_banned_ips"`
+	ServerConsoleOnly    bool     `yaml:"server_console_only"`
+	ServerCPUCount       int      `yaml:"server_cpu_count"`
+	ServerContainersMax  int      `yaml:"server_containers_max"`
+	ServerMaintenance    bool     `yaml:"server_maintenance"`
+	ServerTerms          string   `yaml:"server_terms"`
+	Jwtsecret            string   `yaml:"jwtsecret"`
+	ServerHttp           bool     `yaml:"server_http"`
+	ServerHttpPort       string   `yaml:"server_http_port"`
+	ServerHttps          bool     `yaml:"server_https"`
+	ServerHttpsPort      string   `yaml:"server_https_port"`
+	ServerHttpsCertFile  string   `yaml:"server_https_cert_file"`
+	ServerHttpsKeyFile   string   `yaml:"server_https_key_file"`
+	ServerHostnameAlias  string   `yaml:"server_hostname_alias"`
+	ContainerSshBasePort int      `yaml:"container_sshbaseport"`
+	Profiles             []string `yaml:"profiles"`
+	Command              []string `yaml:"command"`
 }
 
-
 type statusCode int
+
 const (
 	serverOperational statusCode = 0
 	serverMaintenance statusCode = 1
 
-	containerStarted      statusCode = 0
-//	containerInvalidTerms statusCode = 1
+	containerStarted statusCode = 0
+	//	containerInvalidTerms statusCode = 1
 	containerServerFull   statusCode = 2
 	containerQuotaReached statusCode = 3
 	containerUserBanned   statusCode = 4
 	containerUnknownError statusCode = 5
 )
-
 
 func main() {
 	rand.Seed(time.Now().UTC().UnixNano() + 0xcafebabe)
@@ -78,7 +76,6 @@ func main() {
 		os.Exit(1)
 	}
 }
-
 
 func parseConfig() error {
 	data, err := ioutil.ReadFile("yookitermlxd-config.yml")
@@ -96,46 +93,6 @@ func parseConfig() error {
 	return nil
 }
 
-
-func configWatcher() {
-	/*
-	// Watch for configuration changes
-	watcher, err := inotify.NewWatcher()
-	if err != nil {
-		fmt.Errorf("Unable to setup inotify: %s", err)
-	}
-
-	err = watcher.Watch(".")
-	if err != nil {
-		fmt.Errorf("Unable to setup inotify watch: %s", err)
-	}
-
-	go func() {
-		for {
-			select {
-			case ev := <-watcher.Event:
-				if ev.Name != "./lxd-demo.yml" {
-					continue
-				}
-
-				if ev.Mask&inotify.IN_MODIFY != inotify.IN_MODIFY {
-					continue
-				}
-
-				fmt.Printf("Reloading configuration\n")
-				err := parseConfig()
-				if err != nil {
-					fmt.Printf("Failed to parse configuration: %s\n", err)
-				}
-			case err := <-watcher.Error:
-				fmt.Printf("Inotify error: %s\n", err)
-			}
-		}
-	}()
-	*/
-}
-
-
 func run() error {
 	var err error
 
@@ -147,11 +104,8 @@ func run() error {
 		return err
 	}
 
-	// Start the configuration file watcher
-	configWatcher()
-
 	// Connect to the LXD daemon
-	lxdDaemon, err = lxd.NewClient(&lxd.DefaultConfig, "local")
+	lxdDaemon, err = lxd.ConnectLXDUnix("", nil)
 	if err != nil {
 		return fmt.Errorf("Unable to connect to LXD: %s", err)
 	}
@@ -192,33 +146,20 @@ func run() error {
 	r.Handle("/1.0/admin/logs", jwtMiddleware.Handler(restAdminLogsHandler))
 	r.Handle("/1.0/admin/stats", jwtMiddleware.Handler(restAdminStatsHandler))
 
-
 	// Set CORS
 	c := cors.New(cors.Options{
-	    AllowedOrigins: []string{"*"},
-	    AllowCredentials: true,
-			AllowedHeaders: []string{"Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"},
+		AllowedOrigins:   []string{"*"},
+		AllowCredentials: true,
+		AllowedHeaders:   []string{"Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"},
 	})
 	handler := c.Handler(r)
 
 	logger.Infof("Yookiterm LXD server 0.3")
-	if config.ServerHttps {
-		go func() {
-			logger.Infof("Listening HTTPS on: %s", config.ServerHttpsPort)
-			err = http.ListenAndServeTLS(config.ServerHttpsPort, config.ServerHttpsCertFile, config.ServerHttpsKeyFile, handler)
-	   	 	if err != nil {
-	       	logger.Errorf("ListenAndServe: %s", err)
-    		}
-		}()
-	}
-
-	if config.ServerHttp {
-		logger.Infof("Listening HTTP on: %s", config.ServerHttpPort)
-		err = http.ListenAndServe(config.ServerHttpPort, handler)
-		if err != nil {
-			//return err
-			logger.Errorf("HTTP error: %s", err)
-		}
+	logger.Infof("Listening HTTP on: %s", config.ServerHttpPort)
+	err = http.ListenAndServe(config.ServerHttpPort, handler)
+	if err != nil {
+		fmt.Errorf("HTTP error: %s", err)
+		return nil
 	}
 
 	return nil

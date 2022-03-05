@@ -12,11 +12,12 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
-	"github.com/lxc/lxd"
+	lxd "github.com/lxc/lxd/client"
 	"github.com/lxc/lxd/shared"
-)
-import b64 "encoding/base64"
+	"github.com/lxc/lxd/shared/api"
 
+	b64 "encoding/base64"
+)
 
 // REST
 // Public / Not-Authenticated
@@ -72,7 +73,6 @@ func restStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
 // REST
 // Authenticated
 // URL: /1.0/container
@@ -94,7 +94,6 @@ var restContainerListHandler = http.HandlerFunc(func(w http.ResponseWriter, r *h
 		return
 	}
 })
-
 
 // REST
 // Authenticated
@@ -118,11 +117,10 @@ var restContainerHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.
 			return
 		}
 	} else {
-		restWriteContainerInfo(w, container);
+		restWriteContainerInfo(w, container)
 		return
 	}
 })
-
 
 // REST
 // Authenticated
@@ -142,17 +140,16 @@ var restContainerStartHandler = http.HandlerFunc(func(w http.ResponseWriter, r *
 		// Check if the user has "accidently" stopped it, and start it
 		containerStartIfStopped(userId, containerBaseName)
 
-		auditLog(userId, r, "Get container: " + containerBaseName)
-		restWriteContainerInfo(w, container);
-		return;
+		auditLog(userId, r, "Get container: "+containerBaseName)
+		restWriteContainerInfo(w, container)
+		return
 	} else {
 		logger.Infof("Starting containerBase %s for user %s", containerBaseName, userId)
-		auditLog(userId, r, "Create container: " + containerBaseName)
+		auditLog(userId, r, "Create container: "+containerBaseName)
 		restCreateContainer(userId, containerBaseName, w, "1.1.1.1")
-		return;
+		return
 	}
 })
-
 
 // REST
 // Authenticated
@@ -166,11 +163,10 @@ var restContainerRestartHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 	userId := getUserId(r)
 
 	// TODO implement
-	logger.Infof("Restarting containerbase %s for user %s", containerBaseName, userId);
+	logger.Infof("Restarting containerbase %s for user %s", containerBaseName, userId)
 
-	return;
+	return
 })
-
 
 // REST
 // Authenticated, Admin only
@@ -183,7 +179,7 @@ var restContainerStopHandler = http.HandlerFunc(func(w http.ResponseWriter, r *h
 	containerBaseName := vars["containerBaseName"]
 	userId := getUserId(r)
 
-	if ! userIsAdmin(r) {
+	if !userIsAdmin(r) {
 		logger.Infof("User %s which is not admin tried to stop a container %s", userId, containerBaseName)
 		http.Error(w, "Internal server error", 500)
 		return
@@ -212,7 +208,6 @@ var restContainerStopHandler = http.HandlerFunc(func(w http.ResponseWriter, r *h
 	}
 })
 
-
 // REST
 // Authenticated
 // URL: /1.0/container/{containerBaseName}/console
@@ -221,14 +216,14 @@ var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 	containerBaseName := vars["containerBaseName"]
 
 	// manual validation of auth token because its websocket
-	token := r.FormValue("token");
+	token := r.FormValue("token")
 	isAuth, userId := jwtValidate(token)
 	if isAuth == false {
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
 
-	auditLog(userId, r, "Get console: " + containerBaseName)
+	auditLog(userId, r, "Get console: "+containerBaseName)
 	logger.Infof("try creating a websocket console for container %s for user %s", containerBaseName, userId)
 
 	doesExist, uuid, containerName := dbContainerExists(userId, containerBaseName)
@@ -264,7 +259,6 @@ var restContainerConsoleHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 	restMakeMeConsole(w, r, widthInt, heightInt, containerName)
 })
 
-
 /********************/
 
 func restWriteContainerInfo(w http.ResponseWriter, container containerDbInfo) {
@@ -291,7 +285,6 @@ func restWriteContainerInfo(w http.ResponseWriter, container containerDbInfo) {
 		return
 	}
 }
-
 
 func restClientIP(r *http.Request) (string, string, error) {
 	var address string
@@ -324,7 +317,6 @@ func restClientIP(r *http.Request) (string, string, error) {
 
 	return address, protocol, nil
 }
-
 
 func restMakeMeConsole(w http.ResponseWriter, r *http.Request, widthInt int, heightInt int, containerName string) {
 	// Setup websocket with the client
@@ -385,7 +377,7 @@ func restMakeMeConsole(w http.ResponseWriter, r *http.Request, widthInt int, hei
 				continue
 			case websocket.TextMessage:
 				data_decoded, _ := b64.StdEncoding.DecodeString(string(payload))
-				w.Write(data_decoded);
+				w.Write(data_decoded)
 				//w.Write(payload);
 			default:
 				break
@@ -394,7 +386,7 @@ func restMakeMeConsole(w http.ResponseWriter, r *http.Request, widthInt int, hei
 	}(conn, inWrite)
 
 	// control socket handler
-	handler := func(c *lxd.Client, conn *websocket.Conn) {
+	handler := func(conn *websocket.Conn) {
 		for {
 			_, _, err = conn.ReadMessage()
 			if err != nil {
@@ -403,13 +395,37 @@ func restMakeMeConsole(w http.ResponseWriter, r *http.Request, widthInt int, hei
 		}
 	}
 
-	_, err = lxdDaemon.Exec(containerName, []string{"bash"}, env, inRead, outWrite, outWrite, handler, widthInt, heightInt)
+	req := api.ContainerExecPost{
+		Command:     config.Command,
+		WaitForWS:   true,
+		Interactive: true,
+		Environment: env,
+		Width:       widthInt,
+		Height:      heightInt,
+	}
 
-	inWrite.Close()
-	outRead.Close()
+	execArgs := lxd.ContainerExecArgs{
+		Stdin:    inRead,
+		Stdout:   outWrite,
+		Stderr:   outWrite,
+		Control:  handler,
+		DataDone: make(chan bool),
+	}
 
+	op, err := lxdDaemon.ExecContainer(containerName, req, &execArgs)
 	if err != nil {
 		http.Error(w, "Internal server error", 500)
 		return
 	}
+
+	err = op.Wait()
+	if err != nil {
+		http.Error(w, "Internal server error", 500)
+		return
+	}
+
+	<-execArgs.DataDone
+
+	inWrite.Close()
+	outRead.Close()
 }
