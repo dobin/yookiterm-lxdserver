@@ -6,39 +6,41 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dustinkirkland/golang-petname"
-	"github.com/pborman/uuid"
+	petname "github.com/dustinkirkland/golang-petname"
+	lxd "github.com/lxc/lxd/client"
 	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/api"
+	"github.com/pborman/uuid"
 )
 
-
-func containerStartIfStopped(userId string, containerBaseName string) {
+func containerStartIfStopped(userId string, containerBaseName string) error {
 	containerName := fmt.Sprintf("%s%s", containerBaseName, userId)
 
 	logger.Infof("(try) Starting container %s for %s", containerBaseName, userId)
-	resp, err := lxdDaemon.Action(containerName, "start", -1, false, false)
-	if err != nil {
-			logger.Errorf("Could not start")
-			return
-	}
-	err = lxdDaemon.WaitForSuccess(resp.Operation)
-	if err != nil {
-			logger.Errorf("Could not start")
-			return
+
+	req := api.ContainerStatePut{
+		Action:  "start",
+		Timeout: -1,
 	}
 
+	op, err := lxdDaemon.UpdateContainerState(containerName, req, "")
+	if err != nil {
+		return err
+	}
+
+	err = op.Wait()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
-
 
 func restCreateContainer(userId string, containerBaseName string, w http.ResponseWriter, requestIP string) {
 	body := make(map[string]interface{})
-
-	logger.Infof("Starting container %s for %s", containerBaseName, userId)
-
 	requestDate := time.Now().Unix()
 
-	// Create the container
+	// Container Data
 	containerName := fmt.Sprintf("%s%s", containerBaseName, userId)
 	containerUsername := petname.Adjective()
 	containerPassword := petname.Adjective()
@@ -46,6 +48,8 @@ func restCreateContainer(userId string, containerBaseName string, w http.Respons
 
 	// Config
 	ctConfig := map[string]string{}
+
+	logger.Infof("Starting container %s for %s", containerBaseName, userId)
 
 	ctConfig["security.nesting"] = "false"
 	if config.QuotaCPU > 0 {
@@ -73,50 +77,88 @@ users:
 `, containerUsername, containerPassword)
 	}
 
-	var resp *api.Response
+	//var resp *api.Response
+	var rop lxd.RemoteOperation
 
-	// Copy the base image
+	//// Copy the base image
 	logger.Debugf("restCreateContainer: Pre-copy")
 	logger.Infof("Creating container from image %s with name %s", containerBaseName, containerName)
-		resp, err := lxdDaemon.LocalCopy(containerBaseName, containerName, ctConfig, nil, false)
+	//resp, err := lxdDaemon.LocalCopy(containerBaseName, containerName, ctConfig, nil, false)
+	args := lxd.ContainerCopyArgs{
+		Name:          containerName,
+		ContainerOnly: true,
+	}
 
+	source, _, err := lxdDaemon.GetContainer(config.Container)
 	if err != nil {
 		restStartContainerError(w, err, containerUnknownError)
 		return
 	}
-	err = lxdDaemon.WaitForSuccess(resp.Operation)
+
+	source.Config = ctConfig
+	source.Profiles = config.Profiles
+
+	rop, err = lxdDaemon.CopyContainer(lxdDaemon, *source, &args)
+	if err != nil {
+		restStartContainerError(w, err, containerUnknownError)
+		return
+	}
+	err = rop.Wait()
 	if err != nil {
 		restStartContainerError(w, err, containerUnknownError)
 		return
 	}
 	logger.Debugf("restCreateContainer: Post-copy")
+	//// Copy the base image
 
 	// Configure the container devices
-	ct, err := lxdDaemon.ContainerInfo(containerName)
-	if err != nil {
-		lxdForceDelete(lxdDaemon, containerName)
-		restStartContainerError(w, err, containerUnknownError)
-		return
-	}
-	if config.QuotaDisk > 0 {
-		ct.Devices["root"] = map[string]string{"type": "disk", "path": "/", "size": fmt.Sprintf("%dGB", config.QuotaDisk)}
-	}
-	err = lxdDaemon.UpdateContainerConfig(containerName, ct.Writable())
+	//ct, err := lxdDaemon.ContainerInfo(containerName)
+	ct, etag, err := lxdDaemon.GetContainer(containerName)
 	if err != nil {
 		lxdForceDelete(lxdDaemon, containerName)
 		restStartContainerError(w, err, containerUnknownError)
 		return
 	}
 
-	// Start the container
-	logger.Debugf("restCreateContainer: Pre-start")
-	resp, err = lxdDaemon.Action(containerName, "start", -1, false, false)
+	//// Set config
+	if config.QuotaDisk > 0 {
+		_, ok := ct.ExpandedDevices["root"]
+		if ok {
+			ct.Devices["root"] = ct.ExpandedDevices["root"]
+			ct.Devices["root"]["size"] = fmt.Sprintf("%dGB", config.QuotaDisk)
+		} else {
+			ct.Devices["root"] = map[string]string{"type": "disk", "path": "/", "size": fmt.Sprintf("%dGB", config.QuotaDisk)}
+		}
+	}
+	op, err := lxdDaemon.UpdateContainer(containerName, ct.Writable(), etag)
 	if err != nil {
 		lxdForceDelete(lxdDaemon, containerName)
 		restStartContainerError(w, err, containerUnknownError)
 		return
 	}
-	err = lxdDaemon.WaitForSuccess(resp.Operation)
+	err = op.Wait()
+	if err != nil {
+		lxdForceDelete(lxdDaemon, containerName)
+		restStartContainerError(w, err, containerUnknownError)
+		return
+	}
+	//// Set config
+
+	//// Start the container
+	logger.Debugf("restCreateContainer: Pre-start")
+	// Start the container
+	req := api.ContainerStatePut{
+		Action:  "start",
+		Timeout: -1,
+	}
+	//resp, err = lxdDaemon.Action(containerName, "start", -1, false, false)
+	op, err = lxdDaemon.UpdateContainerState(containerName, req, "")
+	if err != nil {
+		lxdForceDelete(lxdDaemon, containerName)
+		restStartContainerError(w, err, containerUnknownError)
+		return
+	}
+	err = op.Wait()
 	if err != nil {
 		lxdForceDelete(lxdDaemon, containerName)
 		restStartContainerError(w, err, containerUnknownError)
@@ -124,7 +166,12 @@ users:
 	}
 	logger.Debugf("restCreateContainer: Post-start")
 
-	_, containerIP := containerGetIp(containerName)
+	err, containerIP := containerGetIp(containerName)
+	if err != nil {
+		lxdForceDelete(lxdDaemon, containerName)
+		restStartContainerError(w, err, containerUnknownError)
+		return
+	}
 
 	containerExpiry := time.Now().Unix() + int64(config.QuotaTime)
 	containerExpiryHard := time.Now().Unix() + int64(config.QuotaTimeMax)
@@ -161,6 +208,7 @@ users:
 		lxdForceDelete(lxdDaemon, containerName)
 		dbExpire(containerID)
 	})
+
 	// Create thread which gets the IP
 	//go storeContainerIp(containerID, containerName)
 
@@ -173,7 +221,6 @@ users:
 		return
 	}
 }
-
 
 func storeContainerIp(containerID int64, containerName string) {
 	logger.Infof("Trying to get ip... ")
@@ -189,19 +236,14 @@ func storeContainerIp(containerID int64, containerName string) {
 
 }
 
-
 func containerGetIp(containerName string) (error, string) {
 	var containerIP string
-
-	time.Sleep(1 * time.Second)
-
-	timeout := 16
+	time.Sleep(2 * time.Second)
+	timeout := 30
 	for timeout != 0 {
 		timeout--
-		ct, err := lxdDaemon.ContainerState(containerName)
+		ct, _, err := lxdDaemon.GetContainerState(containerName)
 		if err != nil {
-			lxdForceDelete(lxdDaemon, containerName)
-			//restStartContainerError(w, err, containerUnknownError)
 			return err, ""
 		}
 
@@ -242,7 +284,6 @@ func containerGetIp(containerName string) (error, string) {
 	return nil, containerIP
 }
 
-
 func initialContainerCleanupHandler() error {
 	// Restore cleanup handler for existing containers
 	containers, err := dbActiveContainer()
@@ -271,7 +312,6 @@ func initialContainerCleanupHandler() error {
 
 	return nil
 }
-
 
 func restStartContainerError(w http.ResponseWriter, err error, code statusCode) {
 	body := make(map[string]interface{})

@@ -19,3 +19,7 @@ server_http_port: ":41443"
 server_hostname_alias: "localhost"
 container_sshbaseport: 50000
 
+profiles:
+    - default
+    - docker
+command: ["bash"]

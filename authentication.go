@@ -1,73 +1,67 @@
 package main
 
-import(
-//  "github.com/joho/godotenv"
-  "github.com/dgrijalva/jwt-go"
-  "github.com/auth0/go-jwt-middleware"
-	"net/http"
-//  "time"
+import (
 	"fmt"
-//	"encoding/json"
-  "github.com/gorilla/context"
+	"net/http"
+
+	jwtmiddleware "github.com/auth0/go-jwt-middleware"
+	"github.com/form3tech-oss/jwt-go"
+	"github.com/gorilla/context"
 )
 
-
 func getUserId(r *http.Request) string {
-  userContext := context.Get(r, "user")
+	userContext := context.Get(r, "user")
 
-  if userContext == nil {
-    logger.Errorf("Authentication error")
-    auditLog("", r, "Failed authentication")
-    return "";
-  }
-  claims := userContext.(*jwt.Token).Claims.(jwt.MapClaims)
-  userId := claims["userId"].(string)
+	if userContext == nil {
+		logger.Errorf("Authentication error")
+		auditLog("", r, "Failed authentication")
+		return ""
+	}
+	claims := userContext.(*jwt.Token).Claims.(jwt.MapClaims)
+	userId := claims["userId"].(string)
 
-  return userId
+	return userId
 }
 
 func userIsAdmin(r *http.Request) bool {
-  userContext := context.Get(r, "user")
-  if userContext == nil {
-    logger.Errorf("Authentication error")
-    auditLog("", r, "Admin interface: failed authentication")
-    return false;
-  }
+	userContext := context.Get(r, "user")
+	if userContext == nil {
+		logger.Errorf("Authentication error")
+		auditLog("", r, "Admin interface: failed authentication")
+		return false
+	}
 
+	claims := userContext.(*jwt.Token).Claims.(jwt.MapClaims)
+	isAdmin := claims["admin"].(bool)
 
-  claims := userContext.(*jwt.Token).Claims.(jwt.MapClaims)
-  isAdmin := claims["admin"].(bool)
-
-  return isAdmin
+	return isAdmin
 }
 
-
 var jwtMiddleware = jwtmiddleware.New(jwtmiddleware.Options{
-  ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
-    return ([]byte(config.Jwtsecret)), nil
-  },
-  SigningMethod: jwt.SigningMethodHS256,
+	ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
+		return ([]byte(config.Jwtsecret)), nil
+	},
+	SigningMethod: jwt.SigningMethodHS256,
 })
 
-
 func jwtValidate(tokenString string) (bool, string) {
-  token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-      // Don't forget to validate the alg is what you expect:
-      if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-          return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-      }
-      return []byte(config.Jwtsecret), nil
-  })
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Don't forget to validate the alg is what you expect:
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(config.Jwtsecret), nil
+	})
 
-  if err != nil {
-    fmt.Println("FAIL1", err)
-    return false, ""
-  }
+	if err != nil {
+		fmt.Println("FAIL1", err)
+		return false, ""
+	}
 
-  if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-      return true, claims["userId"].(string)
-  } else {
-      fmt.Println("Fail", claims)
-      return false, ""
-  }
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		return true, claims["userId"].(string)
+	} else {
+		fmt.Println("Fail", claims)
+		return false, ""
+	}
 }
