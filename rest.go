@@ -15,8 +15,6 @@ import (
 	lxd "github.com/lxc/lxd/client"
 	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/api"
-
-	b64 "encoding/base64"
 )
 
 // REST
@@ -354,8 +352,7 @@ func restMakeMeConsole(w http.ResponseWriter, r *http.Request, widthInt int, hei
 				break
 			}
 
-			data_b64 := b64.StdEncoding.EncodeToString([]byte(buf))
-			err = conn.WriteMessage(websocket.TextMessage, []byte(data_b64))
+			err = conn.WriteMessage(websocket.TextMessage, buf)
 			if err != nil {
 				break
 			}
@@ -376,9 +373,7 @@ func restMakeMeConsole(w http.ResponseWriter, r *http.Request, widthInt int, hei
 			case websocket.BinaryMessage:
 				continue
 			case websocket.TextMessage:
-				data_decoded, _ := b64.StdEncoding.DecodeString(string(payload))
-				w.Write(data_decoded)
-				//w.Write(payload);
+				w.Write(payload)
 			default:
 				break
 			}
