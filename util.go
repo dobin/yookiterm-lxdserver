@@ -6,6 +6,8 @@ import (
 )
 
 func lxdForceDelete(d lxd.ContainerServer, name string) error {
+	logger.Infof("ForceDeleting continaer %s", name)
+
 	req := api.ContainerStatePut{
 		Action:  "stop",
 		Timeout: -1,

@@ -110,6 +110,7 @@ func restCreateContainer(userId string, containerBaseName string, w http.Respons
 
 	// Create timer to destroy that container after configured timeframe
 	time.AfterFunc(duration, func() {
+		logger.Infof("Deleting container AfterFunc (%s)", duration)
 		lxdForceDelete(lxdDaemon, containerName)
 		dbExpire(containerID)
 	})
