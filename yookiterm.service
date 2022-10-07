@@ -1,0 +1,12 @@
+[Unit]
+Description=Yookiterm
+
+[Service]
+Type=simple
+WorkingDirectory=/home/yookiterm/yookiterm-lxdserver
+ExecStart=/home/yookiterm/yookiterm-lxdserver/yookiterm-lxdserver
+User=yookiterm
+Group=yookiterm
+
+[Install]
+WantedBy=multi-user.target
